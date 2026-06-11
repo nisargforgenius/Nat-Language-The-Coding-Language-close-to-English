@@ -1,0 +1,84 @@
+# ═══════════════════════════════════════════
+#  examples.nat — NAT v3.0 Advanced Programs
+# ═══════════════════════════════════════════
+
+# ── 1. Fibonacci ──────────────────────────
+show("Fibonacci 0-10:").
+make fib with n inside:
+    if n < 2:
+        give n.
+    end.
+    give fib(n - 1) + fib(n - 2).
+end.
+repeat i from 0 to 10 step 1:
+    show(fib(i)).
+end.
+
+# ── 2. Factorial ──────────────────────────
+show("Factorials 1-8:").
+make fact with n inside:
+    if n < 2:
+        give 1.
+    end.
+    give n * fact(n - 1).
+end.
+repeat i from 1 to 8 step 1:
+    show(fact(i)).
+end.
+
+# ── 3. Power of 2 using fix ───────────────
+fix BITS 8
+show("Powers of 2:").
+make power with base exp inside:
+    let result be num(1).
+    repeat i from 1 to exp step 1:
+        let result be result * base.
+    end.
+    give result.
+end.
+repeat i from 0 to BITS step 1:
+    show(power(2, i)).
+end.
+
+# ── 4. Even numbers with modulo ───────────
+show("Even numbers 1-20:").
+repeat i from 1 to 20 step 1:
+    if i % 2 == 0:
+        show(i).
+    end.
+end.
+
+# ── 5. add with to accumulation ───────────
+show("Sum 1 to 10:").
+let total be num(0).
+repeat i from 1 to 10 step 1:
+    add total with i to total.
+end.
+show(total).
+
+# ── 6. String building ────────────────────
+fix TITLE Dr
+make make_name with first last inside:
+    give first and " " and last.
+end.
+show(TITLE and ". " and make_name("Ada", "Lovelace")).
+show(TITLE and ". " and make_name("Alan", "Turing")).
+
+# ── 7. Nested functions ───────────────────
+make square with n inside:
+    give n * n.
+end.
+make hyp_sq with a b inside:
+    give square(a) + square(b).
+end.
+show("3^2 + 4^2 =").
+show(hyp_sq(3, 4)).
+
+# ── 8. While countdown ────────────────────
+show("Countdown:").
+let n be num(5).
+while n >= 1:
+    show(n).
+    let n be n - 1.
+end.
+show("Go!").
