@@ -2,6 +2,10 @@
 
 A simple, English-style compiled programming language written in pure C.
 Designed to read like natural English — no symbols where words will do.
+This language was created by Nisarg with the help of Claude Sonet Model.
+The earliest version V1.0 and V2.0 of NAT was written by me, but it has so many bugs,
+that i had to take help of Sonet to make it stable. So it changed my code and edited it
+to a better and stable form, but the whole idea and starting point was from me only.
 
 ---
 
