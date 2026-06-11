@@ -254,5 +254,5 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-*NAT — the guy in the chair. C is Spider-Man, NAT handles the rest.*
+*NAT — Created by Nisarg and Claude, for the devs.*
 
