@@ -62,7 +62,7 @@ show x + y.
 ### Math — `+ - * / % ^`
 ```nat
 show 10 + 3.
-show 2 ^ 8.
+show 2^8.
 show (x + y) * 2.
 ```
 
