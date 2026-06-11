@@ -1095,7 +1095,7 @@ void execute(Node *n) {
     case NODE_FILE_WRITE: {
         char val[MAX_STR] = {0};
         if (n->left) eval(n->left, val, MAX_STR);
-        FILE *fp = fopen(n->name, "w");
+        FILE *fp = fopen(n->name, "wb");
         if (!fp) {
             err_file_open(g_current_line, n->name);
             return;
@@ -1115,7 +1115,7 @@ void execute(Node *n) {
         if (target < 1) { err_line_range(g_current_line, n->name, target); return; }
 
         /* read all lines */
-        FILE *fp = fopen(n->name, "r");
+        FILE *fp = fopen(n->name, "rb");
         char *lines[4096]; int lc = 0;
         char buf[MAX_STR];
         if (fp) {
@@ -1131,7 +1131,7 @@ void execute(Node *n) {
         free(lines[target-1]);
         lines[target-1] = strdup(val);
         /* write back */
-        fp = fopen(n->name, "w");
+        fp = fopen(n->name, "wb");
         if (!fp) { err_file_open(g_current_line, n->name); goto file_write_line_cleanup; }
         for (int i = 0; i < lc; i++) fprintf(fp, "%s\n", lines[i]);
         fclose(fp);
@@ -1144,7 +1144,7 @@ void execute(Node *n) {
     case NODE_FILE_APPEND: {
         char val[MAX_STR] = {0};
         if (n->left) eval(n->left, val, MAX_STR);
-        FILE *fp = fopen(n->name, "a");
+        FILE *fp = fopen(n->name, "ab");
         if (!fp) { err_file_open(g_current_line, n->name); return; }
         fprintf(fp, "%s\n", val);
         fclose(fp);
@@ -1160,7 +1160,7 @@ void execute(Node *n) {
         int target = atoi(lnum);
         if (target < 1) { err_line_range(g_current_line, n->name, target); return; }
 
-        FILE *fp = fopen(n->name, "r");
+        FILE *fp = fopen(n->name, "rb");
         char *lines[4096]; int lc = 0;
         char buf[MAX_STR];
         if (fp) {
@@ -1177,7 +1177,7 @@ void execute(Node *n) {
             lines[target-1] = strdup(val);
             lc++;
         }
-        fp = fopen(n->name, "w");
+        fp = fopen(n->name, "wb");
         if (!fp) { err_file_open(g_current_line, n->name); goto file_insert_cleanup; }
         for (int i = 0; i < lc; i++) fprintf(fp, "%s\n", lines[i]);
         fclose(fp);
@@ -1193,7 +1193,7 @@ void execute(Node *n) {
         int target = atoi(lnum);
         if (target < 1) { err_line_range(g_current_line, n->name, target); return; }
 
-        FILE *fp = fopen(n->name, "r");
+        FILE *fp = fopen(n->name, "rb");
         if (!fp) { err_file_not_found(g_current_line, n->name); return; }
         char *lines[4096]; int lc = 0;
         char buf[MAX_STR];
@@ -1207,7 +1207,7 @@ void execute(Node *n) {
         free(lines[target-1]);
         for (int i = target-1; i < lc-1; i++) lines[i] = lines[i+1];
         lc--;
-        fp = fopen(n->name, "w");
+        fp = fopen(n->name, "wb");
         if (!fp) { err_file_open(g_current_line, n->name); goto file_remove_cleanup; }
         for (int i = 0; i < lc; i++) fprintf(fp, "%s\n", lines[i]);
         fclose(fp);
@@ -1218,7 +1218,7 @@ void execute(Node *n) {
 
     /* ── read "file.txt". — prints with line numbers ── */
     case NODE_FILE_READ: {
-        FILE *fp = fopen(n->name, "r");
+        FILE *fp = fopen(n->name, "rb");
         if (!fp) { err_file_not_found(g_current_line, n->name); return; }
         char buf[MAX_STR]; int ln = 1;
         while (fgets(buf, MAX_STR, fp)) {
@@ -1265,7 +1265,7 @@ void execute(Node *n) {
 
     /* ── each line in file "x.txt": ── */
     case NODE_FILE_EACH: {
-        FILE *fp = fopen(n->name, "r");
+        FILE *fp = fopen(n->name, "rb");
         if (!fp) { err_file_not_found(g_current_line, n->name); return; }
         char buf[MAX_STR];
         while (fgets(buf, MAX_STR, fp)) {

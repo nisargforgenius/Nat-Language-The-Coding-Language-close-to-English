@@ -740,7 +740,7 @@ void eval(Node *n, char *out, int out_size) {
         char lnum[64] = {0};
         if (n->right) eval(n->right, lnum, 64);
         int target = atoi(lnum);
-        FILE *fp = fopen(n->name, "r");
+        FILE *fp = fopen(n->name, "rb");
         if (!fp) { err_file_not_found(g_current_line, n->name); return; }
         char buf[MAX_STR]; int ln = 1;
         while (fgets(buf, MAX_STR, fp)) {
@@ -760,7 +760,7 @@ void eval(Node *n, char *out, int out_size) {
 
     /* ── file "x.txt" exists — boolean ── */
     case NODE_FILE_EXISTS: {
-        FILE *fp = fopen(n->name, "r");
+        FILE *fp = fopen(n->name, "rb");
         if (fp) { fclose(fp); strncpy(out, "1", out_size-1); }
         else    { strncpy(out, "0", out_size-1); }
         return;

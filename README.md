@@ -1,4 +1,4 @@
-# NAT Language v3.6
+# NAT Language v3.6.1
 
 A simple, English-style compiled programming language written in pure C.
 Designed to read like natural English — no symbols where words will do.
@@ -20,29 +20,15 @@ gcc *.c -o nat.exe
 
 ---
 
-## What's New in v3.6
+## What's New in v3.6.1
 
-Full File I/O system — read, write, append, insert, remove, and loop over files.
+Hotfix for Windows users on v3.6.
 
-- `write "text" to "file.txt".` — create or overwrite
-- `write "text" to "file.txt" at line N.` — overwrite a specific line
-- `append "text" to "file.txt".` — add to end
-- `insert "text" to "file.txt" at line N.` — insert, pushes lines down
-- `remove line N from "file.txt".` — delete a specific line
-- `read "file.txt".` — print file with `line N | content` format
-- `let x be read "file.txt" at line N.` — read a line into a variable
-- `if file "file.txt" exists:` — check if a file exists
-- `delete file "file.txt".` — delete a file
-- `each line in file "file.txt":` — loop over every line
-- `write x inside "file.nat"` — runtime variable injection (no disk write)
-- `x = 10.` — `=` now works as assignment alongside `x be 10.`
-- Bare function calls auto-print return value — `area_rect(2,5).` prints without needing `show`
+- **Windows CRLF fix** — files written on Windows were getting `\r\n` line endings injected by the OS. This caused `read "file.txt"` to display incorrectly in the terminal (line 1 appearing to vanish due to carriage return)
+- All file operations now use **binary mode** — consistent behavior on both Windows and Linux
+- Line reading strips both `\r` and `\n` — files written by Notepad or other Windows editors now read cleanly too
 
-### Bug fixes
-- `sum = num1 + num2.` was incorrectly treated as a function call — fixed
-- `area_rect(2,5).` as a bare statement returned 0 instead of the result — fixed
-
-> **Note:** Windows users should use v3.6.1 instead — it includes a CRLF hotfix.
+> **Windows users on v3.6 should upgrade to v3.6.1.**
 
 ---
 
@@ -86,11 +72,9 @@ end.
 
 ### Runtime injection
 ```nat
-// write x inside injects x into the target file at runtime only
-// the file on disk is NEVER modified
 let x be 10.
 write x inside "other.nat".
-// when other.nat runs, x will be 10 regardless of what other.nat declares
+// other.nat runs with x = 10, file on disk unchanged
 ```
 
 ### Using the standard library
@@ -100,7 +84,7 @@ show sqrt(144).
 show pow(2, 10).
 
 use geometry.tree
-area_rect(5, 3).       // auto-prints: 15
+area_rect(5, 3).
 show area_circle(7).
 
 use string.tree
@@ -125,7 +109,7 @@ make add with a b inside:
 end.
 
 add(3, 4).        // auto-prints: 7
-show add(10, 20). // also works
+show add(10, 20).
 ```
 
 ### For loop
@@ -188,22 +172,19 @@ show "Hello " and name.
 ## Complete Example
 
 ```nat
-// Write a log file and read it back
-
-write "NAT v3.6 launched." to "log.txt".
+write "NAT v3.6.1 launched." to "log.txt".
 append "File I/O working." to "log.txt".
 append "All systems go." to "log.txt".
 
 show "--- Log contents ---".
 read "log.txt".
 
-show "--- Processing each line ---".
 each line in file "log.txt":
     show ">> " and line.
 end.
 
 delete file "log.txt".
-show "Log cleared.".
+show "Done.".
 ```
 
 ---
@@ -211,7 +192,7 @@ show "Log cleared.".
 ## File Structure
 
 ```
-nat_language_v3.6/
+nat_language_v3.6.1/
 ├── compiler/
 │   ├── main.c
 │   ├── parser.c
