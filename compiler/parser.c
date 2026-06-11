@@ -363,7 +363,15 @@ static Node *parse_let(int line_index) {
         int idx = 0;
         while (g_tok_pos < g_tok_count && !tok_is(T_DOT)) {
             if (tok_is(T_COMMA)) { tok_consume(); continue; }
-            Node *elem = parse_factor();
+            Node *elem;
+            /* bare IDENT (no paren after) → treat as string literal */
+            if (tok_is(T_IDENT) && !tok_peek(T_LPAREN, 1)) {
+                elem = node_new(NODE_VAL);
+                strncpy(elem->value, tok_cur()->value, MAX_STR-1);
+                tok_consume();
+            } else {
+                elem = parse_factor();
+            }
             if (elem && elem->kind != NODE_NOOP && idx < MAX_ARGS)
                 n->args[idx++] = elem;
         }
@@ -732,13 +740,10 @@ Node *parse_statement(int line_index) {
                 { is_known_func = 1; break; }
 
         if (is_known_func) {
-            /* parens style: add(5,10). */
+            /* parens style: add(5,10). or sayhi(). */
             if (tok_peek(T_LPAREN, 1)) return parse_call_stmt();
-            /* English style: add 5 10.  — needs at least one arg before dot */
-            int has_args = (g_tok_pos + 1 < g_tok_count) &&
-                           !tok_peek(T_DOT,   1) &&
-                           !tok_peek(T_COLON, 1);
-            if (has_args) return parse_call_stmt();
+            /* English style: add 5 10. — or no-arg call: sayhi. */
+            return parse_call_stmt();
         } else if (strcmp(ty, T_IDENT) == 0 && tok_peek(T_LPAREN, 1)) {
             /* Unknown function called with parens — still try (will error at runtime) */
             return parse_call_stmt();

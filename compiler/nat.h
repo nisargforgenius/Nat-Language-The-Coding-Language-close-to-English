@@ -1,5 +1,5 @@
 /*
- * nat.h — NAT Language v3.0: Shared Types, Constants, Forward Declarations
+ * nat.h — NAT Language v3.1.1: Shared Types, Constants, Forward Declarations
  *
  * NAT is a simple, English-style interpreted language.
  * Architecture: tokenizer → parser → AST → executor/evaluator

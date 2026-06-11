@@ -216,7 +216,9 @@ void execute(Node *n) {
                 else                  snprintf(result, MAX_STR, "%g",   res);
             } else {
                 /* string concatenation */
-                snprintf(result, MAX_STR, "%s%s", lv, rv);
+                strncpy(result, lv, MAX_STR - 1);
+                result[MAX_STR - 1] = '\0';
+                strncat(result, rv, MAX_STR - 1 - strlen(result));
             }
         }
         if (n->name[0]) set_var(n->name, result);
