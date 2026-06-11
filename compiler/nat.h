@@ -156,6 +156,32 @@ typedef enum {
     NODE_LOWER,         /* lower of x   */
     NODE_ABS,           /* abs of x     */
     NODE_ROUND,         /* round of x   */
+    NODE_TRIM,          /* trim of x    */
+    NODE_REPLACE,       /* replace A with B in x */
+    NODE_SPLIT,         /* split x by " " */
+    NODE_MAX,           /* max of a and b */
+    NODE_MIN,           /* min of a and b */
+    NODE_FLOOR,         /* floor of x   */
+    NODE_CEIL,          /* ceil of x    */
+    NODE_IS_NUMBER,     /* x is number      */
+    NODE_IS_TEXT,       /* x is text        */
+    NODE_IS_EVEN,       /* x is even        */
+    NODE_IS_ODD,        /* x is odd         */
+    NODE_RANDOM,        /* random from A to B for x y z */
+    NODE_STR_REPEAT,    /* repeat "ha" 3 times */
+    NODE_REVERSE,       /* reverse of x / reverse arr */
+    NODE_FIRST_N,       /* first N of x     */
+    NODE_LAST_N,        /* last N of x      */
+    NODE_FIRST_ELEM,    /* first of arr     */
+    NODE_LAST_ELEM,     /* last of arr      */
+    NODE_TEXT_OF,       /* text of 42       */
+    NODE_ARR_INSERT,    /* add x to arr at N */
+    NODE_ARR_REMOVE,    /* remove arr at N / remove last/first from arr */
+    NODE_ARR_SWAP,      /* swap arr at 1 and 3 */
+    NODE_ARR_DECLARE_N, /* let fruits are 10. — empty array of size N */
+    NODE_EACH,          /* each item in arr/str: ... end. */
+    NODE_SHOW_EACH,     /* show each item in arr. / online / with sep */
+    NODE_CLAMP,         /* clamp x from A to B */
     NODE_NOOP
 } NodeType;
 

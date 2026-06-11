@@ -13,6 +13,7 @@
  */
 
 #include "nat.h"
+#include <time.h>
 
 /* ─────────────────────────────────────────────────────────────────
    GLOBAL STATE
@@ -90,7 +91,7 @@ static void pre_pass_fix(void) {
    ───────────────────────────────────────────────────────────────── */
 static void print_usage(const char *prog) {
     fprintf(stderr,
-        "NAT Language Interpreter v3.3\n"
+        "NAT Language Interpreter v3.4\n"
         "Usage: %s <script.nat>\n"
         "\n"
         "Quick syntax:\n"
@@ -110,6 +111,8 @@ static void print_usage(const char *prog) {
    main
    ───────────────────────────────────────────────────────────────── */
 int main(int argc, char *argv[]) {
+
+    srand((unsigned int)time(NULL));   /* seed random number generator */
 
     if (argc < 2) {
         print_usage(argv[0]);

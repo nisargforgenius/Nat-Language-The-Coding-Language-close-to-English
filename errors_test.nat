@@ -70,3 +70,35 @@ if z > 1:
 make saybye with person
     show "bye " and person.
 end.
+
+# ── TEST 10: Negative array index ────────────────────────────────
+let colors are red green blue.
+show colors[-1].
+
+# ── TEST 11: Step zero ────────────────────────────────────────────
+repeat i from 1 to 5 step 0:
+    show i.
+end.
+
+# ── TEST 12: Constant reassignment ───────────────────────────────
+fix MAXSCORE 100.
+let MAXSCORE be 999.
+
+# ── TEST 13: Math on text ─────────────────────────────────────────
+let word be "hello".
+let bad be word * 2.
+
+# ── TEST 14: Repeat negative count ───────────────────────────────
+repeat -3 times:
+    show "oops".
+end.
+
+# ── TEST 15: Array in math ────────────────────────────────────────
+let vals are 1 2 3.
+let broken be vals + 10.
+
+# ── TEST 16: Call before define works (pre-scan) ──────────────────
+sayhi "NAT".
+make sayhi with who inside:
+    show "Hey " and who.
+end.

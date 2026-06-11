@@ -159,6 +159,33 @@ static Node *parse_compare(void) {
 
     Node *left = parse_additive();
 
+    /* "needle not in haystack" — inverted contains
+       e.g. "Nis" not in name  → left=needle, right=haystack
+       eval expects left=haystack, right=needle so swap */
+    if (tok_is(T_NOT) && tok_peek(T_IN, 1)) {
+        tok_consume(); /* not */
+        tok_consume(); /* in  */
+        Node *cont  = node_new(NODE_CONTAINS);
+        cont->right = left;             /* needle — was parsed as left */
+        cont->left  = parse_additive(); /* haystack */
+        /* wrap in NOT: (contains == 0) */
+        Node *n  = node_new(NODE_CMP_EQ);
+        n->left  = cont;
+        n->right = node_new(NODE_VAL);
+        strcpy(n->right->value, "0");
+        return n;
+    }
+
+    /* "needle in haystack" — contains, order flipped
+       e.g. "Nis" in name  → left=needle, right=haystack */
+    if (tok_is(T_IN) && !tok_peek(T_MIDDLE, 1)) {
+        tok_consume(); /* in */
+        Node *n  = node_new(NODE_CONTAINS);
+        n->right = left;             /* needle */
+        n->left  = parse_additive(); /* haystack */
+        return n;
+    }
+
     /* "x in middle of A and B" — between check */
     if (tok_is(T_IN) && tok_peek(T_MIDDLE, 1)) {
         tok_consume(); /* in */
@@ -186,11 +213,41 @@ static Node *parse_compare(void) {
         return n;
     }
 
-    /* English-style: "is greater than", "is less than", "is not", "is" */
+    /* English-style: "is greater than", "is less than", "is not", "is number", "is text", "is" */
     if (tok_is(T_IS)) {
         tok_consume();
+        /* type checks */
+        if (tok_is("NUMBER_T")) {
+            tok_consume();
+            Node *n = node_new(NODE_IS_NUMBER);
+            n->left = left;
+            return n;
+        }
+        if (tok_is("TEXT_T")) {
+            tok_consume();
+            Node *n = node_new(NODE_IS_TEXT);
+            n->left = left;
+            return n;
+        }
+        if (tok_is("EVEN")) {
+            tok_consume();
+            Node *n = node_new(NODE_IS_EVEN);
+            n->left = left;
+            return n;
+        }
+        if (tok_is("ODD")) {
+            tok_consume();
+            Node *n = node_new(NODE_IS_ODD);
+            n->left = left;
+            return n;
+        }
         if (tok_is(T_NOT)) {
             tok_consume();
+            /* is not equal to */
+            if (tok_is("EQUAL")) {
+                tok_consume();
+                if (tok_is(T_TO)) tok_consume();
+            }
             Node *n  = node_new(NODE_CMP_NEQ);
             n->left  = left;
             n->right = parse_additive();
@@ -199,6 +256,12 @@ static Node *parse_compare(void) {
         if (tok_is(T_GREATER)) {
             tok_consume();
             if (tok_is(T_THAN)) tok_consume();
+            if (tok_is(T_OR))   { tok_consume();
+                if (tok_is("EQUAL")) tok_consume();
+                if (tok_is(T_TO))   tok_consume();
+                Node *n  = node_new(NODE_CMP_GTE);
+                n->left  = left; n->right = parse_additive(); return n;
+            }
             Node *n  = node_new(NODE_CMP_GT);
             n->left  = left;
             n->right = parse_additive();
@@ -207,7 +270,22 @@ static Node *parse_compare(void) {
         if (tok_is(T_LESS)) {
             tok_consume();
             if (tok_is(T_THAN)) tok_consume();
+            if (tok_is(T_OR))   { tok_consume();
+                if (tok_is("EQUAL")) tok_consume();
+                if (tok_is(T_TO))   tok_consume();
+                Node *n  = node_new(NODE_CMP_LTE);
+                n->left  = left; n->right = parse_additive(); return n;
+            }
             Node *n  = node_new(NODE_CMP_LT);
+            n->left  = left;
+            n->right = parse_additive();
+            return n;
+        }
+        /* is equal to */
+        if (tok_is("EQUAL")) {
+            tok_consume();
+            if (tok_is(T_TO)) tok_consume();
+            Node *n  = node_new(NODE_CMP_EQ);
             n->left  = left;
             n->right = parse_additive();
             return n;
@@ -218,10 +296,21 @@ static Node *parse_compare(void) {
         return n;
     }
 
-    /* English-style without "is": "greater than X", "less than X" */
+    /* English-style without "is": "greater than X", "less than X",
+       "greater than or equal to X", "less than or equal to X" */
     if (tok_is(T_GREATER)) {
         tok_consume();
         if (tok_is(T_THAN)) tok_consume();
+        /* greater than or equal to */
+        if (tok_is(T_OR)) {
+            tok_consume();
+            if (tok_is("EQUAL"))   tok_consume();
+            if (tok_is(T_TO))     tok_consume();
+            Node *n  = node_new(NODE_CMP_GTE);
+            n->left  = left;
+            n->right = parse_additive();
+            return n;
+        }
         Node *n  = node_new(NODE_CMP_GT);
         n->left  = left;
         n->right = parse_additive();
@@ -230,6 +319,16 @@ static Node *parse_compare(void) {
     if (tok_is(T_LESS)) {
         tok_consume();
         if (tok_is(T_THAN)) tok_consume();
+        /* less than or equal to */
+        if (tok_is(T_OR)) {
+            tok_consume();
+            if (tok_is("EQUAL"))   tok_consume();
+            if (tok_is(T_TO))     tok_consume();
+            Node *n  = node_new(NODE_CMP_LTE);
+            n->left  = left;
+            n->right = parse_additive();
+            return n;
+        }
         Node *n  = node_new(NODE_CMP_LT);
         n->left  = left;
         n->right = parse_additive();
@@ -376,7 +475,116 @@ static Node *parse_unary(void) {
         n->left = parse_factor();
         return n;
     }
-    /* keyword used as variable name (e.g. 'length', 'upper' as param) */
+    /* max of a and b */
+    if (tok_is("MAX") && tok_peek(T_OF, 1)) {
+        tok_consume();
+        if (tok_is(T_OF)) tok_consume();
+        Node *n  = node_new(NODE_MAX);
+        n->left  = parse_multiplicative();
+        if (tok_is(T_AND)) tok_consume();
+        n->right = parse_multiplicative();
+        return n;
+    }
+    if (tok_is("MAX")) {
+        Node *n = node_new(NODE_VAR);
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume(); return n;
+    }
+
+    /* min of a and b */
+    if (tok_is("MIN") && tok_peek(T_OF, 1)) {
+        tok_consume();
+        if (tok_is(T_OF)) tok_consume();
+        Node *n  = node_new(NODE_MIN);
+        n->left  = parse_multiplicative();
+        if (tok_is(T_AND)) tok_consume();
+        n->right = parse_multiplicative();
+        return n;
+    }
+    if (tok_is("MIN")) {
+        Node *n = node_new(NODE_VAR);
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume(); return n;
+    }
+
+    /* floor of x */
+    if (tok_is("FLOOR") && tok_peek(T_OF, 1)) {
+        tok_consume();
+        if (tok_is(T_OF)) tok_consume();
+        Node *n = node_new(NODE_FLOOR);
+        n->left = parse_factor();
+        return n;
+    }
+    if (tok_is("FLOOR")) {
+        Node *n = node_new(NODE_VAR);
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume(); return n;
+    }
+
+    /* ceil of x */
+    if (tok_is("CEIL") && tok_peek(T_OF, 1)) {
+        tok_consume();
+        if (tok_is(T_OF)) tok_consume();
+        Node *n = node_new(NODE_CEIL);
+        n->left = parse_factor();
+        return n;
+    }
+    if (tok_is("CEIL")) {
+        Node *n = node_new(NODE_VAR);
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume(); return n;
+    }
+    if (tok_is("TRIM") && tok_peek(T_OF, 1)) {
+        tok_consume();
+        if (tok_is(T_OF)) tok_consume();
+        Node *n = node_new(NODE_TRIM);
+        n->left = parse_factor();
+        return n;
+    }
+    /* trim used as variable name */
+    if (tok_is("TRIM")) {
+        Node *n = node_new(NODE_VAR);
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume();
+        return n;
+    }
+
+    /* replace "A" with "B" in x */
+    if (tok_is("REPLACE")) {
+        tok_consume();
+        Node *n  = node_new(NODE_REPLACE);
+        n->args[0] = parse_factor();          /* search  */
+        if (tok_is(T_WITH)) tok_consume();
+        n->args[1] = parse_factor();          /* replace */
+        if (tok_is(T_IN)) tok_consume();
+        n->args[2] = parse_factor();          /* source  */
+        n->arg_count = 3;
+        return n;
+    }
+
+    /* split x by "sep" */
+    if (tok_is("SPLIT")) {
+        tok_consume();
+        Node *n  = node_new(NODE_SPLIT);
+        n->left  = parse_factor();            /* source  */
+        if (tok_is("BY")) tok_consume();
+        n->right = parse_factor();            /* separator */
+        return n;
+    }
+    /* clamp x from A to B */
+    if (tok_is("CLAMP")) {
+        tok_consume();
+        Node *n  = node_new(NODE_CLAMP);
+        n->left  = parse_factor();        /* value */
+        if (tok_is(T_FROM)) tok_consume();
+        n->args[0] = parse_factor();      /* lo */
+        if (tok_is(T_TO)) tok_consume();
+        n->args[1] = parse_factor();      /* hi */
+        n->arg_count = 2;
+        return n;
+    }
+
+    /* keyword used as variable name fallback */
     if (tok_is(T_LENGTH) || tok_is(T_UPPER) || tok_is(T_LOWER) ||
         tok_is(T_ABS)    || tok_is(T_ROUND)) {
         Node *n = node_new(NODE_VAR);
@@ -385,11 +593,142 @@ static Node *parse_unary(void) {
         return n;
     }
 
+    /* ── v3.4 p5 new builtins ── */
+
+    /* text of x — number to string */
+    if (tok_is("TEXT_T") && tok_peek(T_OF, 1)) {
+        tok_consume();
+        if (tok_is(T_OF)) tok_consume();
+        Node *n = node_new(NODE_TEXT_OF);
+        n->left = parse_factor();
+        return n;
+    }
+    if (tok_is("TEXT_T")) {
+        Node *n = node_new(NODE_VAR);
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume(); return n;
+    }
+
+    /* repeat "ha" N times — expression style */
+    if (tok_is(T_REPEAT) && (tok_peek(T_STRING, 1) ||
+        (g_tok_pos + 1 < g_tok_count &&
+         strcmp(g_tokens[g_tok_pos+1].type, T_IDENT) == 0))) {
+        tok_consume();
+        Node *n  = node_new(NODE_STR_REPEAT);
+        n->left  = parse_factor();   /* string */
+        n->right = parse_factor();   /* count  */
+        if (tok_is(T_TIMES)) tok_consume();
+        return n;
+    }
+
+    /* reverse of x */
+    if (tok_is("REVERSE") && tok_peek(T_OF, 1)) {
+        tok_consume();
+        if (tok_is(T_OF)) tok_consume();
+        Node *n = node_new(NODE_REVERSE);
+        n->left = parse_factor();
+        return n;
+    }
+    if (tok_is("REVERSE")) {
+        Node *n = node_new(NODE_VAR);
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume(); return n;
+    }
+
+    /* first of arr  OR  first N of x */
+    /* first of arr  OR  first N of x  OR  variable named 'first' */
+    if (tok_is("FIRST")) {
+        /* if followed by DOT, COMMA, operator, or end — it's a variable */
+        int next = g_tok_pos + 1;
+        int next_is_op = (next >= g_tok_count) ||
+            tok_peek(T_DOT,   1) || tok_peek(T_COMMA, 1) ||
+            tok_peek(T_PLUS,  1) || tok_peek(T_MINUS, 1) ||
+            tok_peek(T_STAR,  1) || tok_peek(T_SLASH, 1) ||
+            tok_peek(T_EQ,    1) || tok_peek(T_NEQ,   1) ||
+            tok_peek(T_GT,    1) || tok_peek(T_LT,    1) ||
+            tok_peek(T_GTE,   1) || tok_peek(T_LTE,   1) ||
+            tok_peek(T_AND,   1) || tok_peek(T_OR,    1) ||
+            tok_peek(T_RPAREN,1) || tok_peek(T_RBRACK,1);
+        if (next_is_op) {
+            Node *n = node_new(NODE_VAR);
+            strncpy(n->name, tok_cur()->value, 63);
+            tok_consume(); return n;
+        }
+        tok_consume();
+        if (tok_is(T_OF)) {
+            tok_consume();
+            Node *n = node_new(NODE_FIRST_ELEM);
+            n->left = parse_factor();
+            return n;
+        }
+        Node *n  = node_new(NODE_FIRST_N);
+        n->left  = parse_factor();
+        if (tok_is(T_OF)) tok_consume();
+        n->right = parse_factor();
+        return n;
+    }
+
+    /* last of arr  OR  last N of x  OR  variable named 'last' */
+    if (tok_is("LAST")) {
+        int next_is_op = (g_tok_pos + 1 >= g_tok_count) ||
+            tok_peek(T_DOT,   1) || tok_peek(T_COMMA, 1) ||
+            tok_peek(T_PLUS,  1) || tok_peek(T_MINUS, 1) ||
+            tok_peek(T_STAR,  1) || tok_peek(T_SLASH, 1) ||
+            tok_peek(T_EQ,    1) || tok_peek(T_NEQ,   1) ||
+            tok_peek(T_GT,    1) || tok_peek(T_LT,    1) ||
+            tok_peek(T_GTE,   1) || tok_peek(T_LTE,   1) ||
+            tok_peek(T_AND,   1) || tok_peek(T_OR,    1) ||
+            tok_peek(T_RPAREN,1) || tok_peek(T_RBRACK,1);
+        if (next_is_op) {
+            Node *n = node_new(NODE_VAR);
+            strncpy(n->name, tok_cur()->value, 63);
+            tok_consume(); return n;
+        }
+        tok_consume();
+        if (tok_is(T_OF)) {
+            tok_consume();
+            Node *n = node_new(NODE_LAST_ELEM);
+            n->left = parse_factor();
+            return n;
+        }
+        Node *n  = node_new(NODE_LAST_N);
+        n->left  = parse_factor();
+        if (tok_is(T_OF)) tok_consume();
+        n->right = parse_factor();
+        return n;
+    }
+
+    /* is even x / is odd x — prefix style */
+    if (tok_is(T_IS) && tok_peek("EVEN", 1)) {
+        tok_consume(); tok_consume();
+        Node *n = node_new(NODE_IS_EVEN);
+        n->left = parse_factor();
+        return n;
+    }
+    if (tok_is(T_IS) && tok_peek("ODD", 1)) {
+        tok_consume(); tok_consume();
+        Node *n = node_new(NODE_IS_ODD);
+        n->left = parse_factor();
+        return n;
+    }
+
     return parse_factor();
 }
 
 /* factor */
 static Node *parse_factor(void) {
+
+    /* random from A to B — expression style: let n be random from 1 to 10. */
+    if (tok_is("RANDOM")) {
+        tok_consume();
+        Node *n = node_new(NODE_RANDOM);
+        if (tok_is(T_FROM)) tok_consume();
+        n->left  = parse_factor();
+        if (tok_is(T_TO)) tok_consume();
+        n->right = parse_factor();
+        n->param_count = 0;
+        return n;
+    }
 
     if (tok_is(T_LPAREN)) {
         tok_consume();
@@ -523,7 +862,7 @@ static int find_end(int line_index) {
         ki++;
     }
     keyword[ki] = '\0';
-    err_unclosed_block(line_index + 1, keyword);
+    err_unclosed_block(g_current_line, keyword);
     return g_line_count - 1;
 }
 
@@ -542,7 +881,10 @@ static Node *parse_let(int line_index) {
     (void)line_index;
     tok_expect(T_LET);
 
-    if (!tok_is(T_IDENT)) {
+    /* Accept IDENT or any keyword used as a variable name (e.g. 'upper', 'lower', 'round') */
+    Token *vt = tok_cur();
+    if (!vt || tok_is(T_DOT) || tok_is(T_COLON) ||
+        tok_is(T_LPAREN) || tok_is(T_RPAREN)) {
         fprintf(stderr, "NAT: expected variable name after 'let'\n");
         return node_new(NODE_NOOP);
     }
@@ -576,9 +918,16 @@ static Node *parse_let(int line_index) {
     strncpy(vname, tok_cur()->value, 63);
     tok_consume();
 
-    /* array: let nums are 1 2 3 4. */
+    /* array: let nums are 1 2 3 4.  OR  let nums are 10. (empty array of size N) */
     if (tok_is(T_ARE)) {
         tok_consume();
+        /* detect: single NUMBER followed by DOT = sized empty array */
+        if (tok_is(T_NUMBER) && tok_peek(T_DOT, 1)) {
+            Node *n = node_new(NODE_ARR_DECLARE_N);
+            strncpy(n->name, vname, 63);
+            n->left = parse_factor(); /* size */
+            return n;
+        }
         Node *n = node_new(NODE_ARRAY);
         strncpy(n->name, vname, 63);
         int idx = 0;
@@ -626,6 +975,35 @@ static Node *parse_let(int line_index) {
 static Node *parse_show(void) {
     tok_expect(T_SHOW);
     Node *n = node_new(NODE_SHOW);
+
+    /* show each item in arr. / online / with "sep" */
+    if (tok_is("EACH")) {
+        tok_consume(); /* each */
+        Node *se = node_new(NODE_SHOW_EACH);
+        /* loop variable name */
+        strncpy(se->params[0], tok_cur()->value, 63);
+        tok_consume();
+        if (tok_is(T_IN)) tok_consume();
+        /* source — array or string variable */
+        se->left = parse_factor();
+        /* online modifier */
+        if (tok_is("ONLINE")) {
+            tok_consume();
+            se->value[0] = 'O'; /* flag: online */
+            /* with "sep" */
+            if (tok_is(T_WITH)) {
+                tok_consume();
+                strncpy(se->params[1], tok_cur()->value, 63);
+                tok_consume();
+                se->value[1] = 'S'; /* flag: custom separator */
+            } else {
+                /* default separator: space */
+                strncpy(se->params[1], " ", 63);
+            }
+        }
+        n->left = se;
+        return n;
+    }
 
     if (tok_is(T_LPAREN)) {
         tok_consume();
@@ -710,7 +1088,7 @@ static Node *parse_make(int line_index) {
     if (tok_is(T_INSIDE)) {
         tok_consume();
     } else {
-        err_make_no_inside(line_index + 1, n->name);
+        err_make_no_inside(g_current_line, n->name);
     }
 
     n->body_start = line_index + 1;
@@ -746,7 +1124,7 @@ static Node *parse_repeat(int line_index) {
     if (tok_is(T_COLON)) {
         tok_consume();
     } else {
-        err_missing_colon(line_index + 1, "repeat");
+        err_missing_colon(g_current_line, "repeat");
     }
     n->body_start = line_index + 1;
     n->body_end   = find_end(line_index);
@@ -761,7 +1139,7 @@ static Node *parse_while(int line_index) {
     if (tok_is(T_COLON)) {
         tok_consume();
     } else {
-        err_missing_colon(line_index + 1, "while");
+        err_missing_colon(g_current_line, "while");
     }
     n->body_start = line_index + 1;
     n->body_end   = find_end(line_index);
@@ -776,7 +1154,7 @@ static Node *parse_if(int line_index) {
     if (tok_is(T_COLON)) {
         tok_consume();
     } else {
-        err_missing_colon(line_index + 1, "if");
+        err_missing_colon(g_current_line, "if");
     }
 
     int end_line  = find_end(line_index);
@@ -802,12 +1180,29 @@ static Node *parse_if(int line_index) {
     }
 
     if (else_line != -1) {
-        n->body_start      = line_index + 1;
-        n->body_end        = else_line - 1;
-        Node *eb           = node_new(NODE_NOOP);
-        eb->body_start     = else_line + 1;
-        eb->body_end       = end_line - 1;
-        n->else_branch     = eb;
+        n->body_start  = line_index + 1;
+        n->body_end    = else_line - 1;
+
+        /* check if it's "else if" or plain "else" */
+        char *ep = g_lines[else_line];
+        while (*ep == ' ' || *ep == '\t') ep++;
+
+        if (strncmp(ep, "else if ", 8) == 0 ||
+            strncmp(ep, "else if:", 8) == 0) {
+            /* else if — parse the else line as a new if node */
+            tokenize(g_lines[else_line]);
+            g_tok_pos = 0;
+            tok_expect(T_ELSE);   /* consume 'else' */
+            /* now parse the 'if ...:' as a nested if */
+            Node *elif_node = parse_if(else_line);
+            n->else_branch  = elif_node;
+        } else {
+            /* plain else */
+            Node *eb       = node_new(NODE_NOOP);
+            eb->body_start = else_line + 1;
+            eb->body_end   = end_line - 1;
+            n->else_branch = eb;
+        }
     } else {
         n->body_start = line_index + 1;
         n->body_end   = end_line - 1;
@@ -835,11 +1230,18 @@ static Node *parse_add_stmt(void) {
     Node *n  = node_new(NODE_ADD_ASSIGN);
     n->left  = parse_factor();
     if (tok_is(T_WITH)) tok_consume();
-    n->right = parse_expression();
+    /* check for "add X to arr" vs "add X with Y to Z" */
+    if (!tok_is(T_TO)) n->right = parse_expression();
     if (tok_is(T_TO)) tok_consume();
     if (tok_is(T_IDENT)) {
         strncpy(n->name, tok_cur()->value, 63);
         tok_consume();
+    }
+    /* "add X to arr at N" — insert at index */
+    if (tok_is("AT")) {
+        tok_consume();
+        n->kind  = NODE_ARR_INSERT;
+        n->right = parse_factor(); /* index */
     }
     return n;
 }
@@ -879,6 +1281,133 @@ static Node *parse_call_stmt(void) {
     return n;
 }
 
+/*
+ * random from A to B for x y z.   — statement style, multi-var
+ * let n be random from A to B.    — expression style, single var (handled in parse_factor)
+ */
+static Node *parse_random_stmt(void) {
+    tok_consume(); /* random */
+    Node *n = node_new(NODE_RANDOM);
+    if (tok_is(T_FROM)) tok_consume();
+    n->left  = parse_factor();   /* lo */
+    if (tok_is(T_TO)) tok_consume();
+    n->right = parse_factor();   /* hi */
+    /* for x y z */
+    if (tok_is(T_FOR)) tok_consume();
+    int idx = 0;
+    while (g_tok_pos < g_tok_count && !tok_is(T_DOT) && idx < MAX_PARAMS) {
+        if (tok_is(T_COMMA)) { tok_consume(); continue; }
+        Token *pt = tok_cur();
+        if (!pt || tok_is(T_DOT)) break;
+        strncpy(n->params[idx++], pt->value, 63);
+        tok_consume();
+    }
+    n->param_count = idx;
+    return n;
+}
+
+/*
+ * remove arr at N.
+ * remove last from arr.
+ * remove first from arr.
+ */
+static Node *parse_remove_stmt(void) {
+    tok_consume(); /* remove */
+    Node *n = node_new(NODE_ARR_REMOVE);
+
+    /* remove last from arr */
+    if (tok_is("LAST")) {
+        tok_consume();
+        if (tok_is(T_FROM)) tok_consume();
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume();
+        n->value[0] = 'L'; /* flag: last */
+        return n;
+    }
+    /* remove first from arr */
+    if (tok_is("FIRST")) {
+        tok_consume();
+        if (tok_is(T_FROM)) tok_consume();
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume();
+        n->value[0] = 'F'; /* flag: first */
+        return n;
+    }
+    /* remove arr at N */
+    strncpy(n->name, tok_cur()->value, 63);
+    tok_consume();
+    if (tok_is("AT")) tok_consume();
+    n->left = parse_factor(); /* index */
+    n->value[0] = 'I';        /* flag: index */
+    return n;
+}
+
+/*
+ * swap arr at 1 and 3.
+ */
+static Node *parse_swap_stmt(void) {
+    tok_consume(); /* swap */
+    Node *n = node_new(NODE_ARR_SWAP);
+    strncpy(n->name, tok_cur()->value, 63);
+    tok_consume();
+    if (tok_is("AT")) tok_consume();
+    n->left  = parse_factor();   /* index 1 */
+    if (tok_is(T_AND)) tok_consume();
+    n->right = parse_factor();   /* index 2 */
+    return n;
+}
+
+/*
+ * reverse arr.   — reverse array in place
+ */
+static Node *parse_reverse_stmt(void) {
+    tok_consume(); /* reverse */
+    Node *n = node_new(NODE_REVERSE);
+    /* if followed by IDENT (no 'of') it's a statement — arr name */
+    if (tok_is(T_IDENT)) {
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume();
+    } else {
+        n->left = parse_factor();
+    }
+    return n;
+}
+
+/*
+ * repeat "ha" 5 times.  — statement style, just prints
+ */
+static Node *parse_str_repeat_stmt(void) {
+    tok_consume(); /* repeat */
+    Node *n  = node_new(NODE_STR_REPEAT);
+    n->left  = parse_factor();   /* string */
+    n->right = parse_factor();   /* count  */
+    if (tok_is(T_TIMES)) tok_consume();
+    n->name[0] = 'P'; /* flag: print directly */
+    return n;
+}
+
+/*
+ * each item in fruits:
+ *     show item.
+ * end.
+ */
+static Node *parse_each_stmt(int line_index) {
+    tok_consume(); /* each */
+    Node *n = node_new(NODE_EACH);
+    /* loop variable name */
+    strncpy(n->params[0], tok_cur()->value, 63);
+    n->param_count = 1;
+    tok_consume();
+    if (tok_is(T_IN)) tok_consume();
+    /* source */
+    n->left = parse_factor();
+    if (tok_is(T_COLON)) tok_consume();
+    n->body_start = line_index + 1;
+    n->body_end   = find_end(line_index);
+    n->loop_to    = n->body_end;
+    return n;
+}
+
 /* ─────────────────────────────────────────────────────────────────
    parse_statement — main dispatch
    ───────────────────────────────────────────────────────────────── */
@@ -895,11 +1424,38 @@ Node *parse_statement(int line_index) {
     if (strcmp(ty, T_SHOW)   == 0) return parse_show();
     if (strcmp(ty, T_GIVE)   == 0) return parse_give();
     if (strcmp(ty, T_MAKE)   == 0) return parse_make(line_index);
+    /* repeat "str" N times. — statement style MUST come before loop repeat */
+    if (strcmp(ty, T_REPEAT) == 0 &&
+        g_tok_pos + 1 < g_tok_count &&
+        strcmp(g_tokens[g_tok_pos+1].type, T_STRING) == 0)
+        return parse_str_repeat_stmt();
     if (strcmp(ty, T_REPEAT) == 0) return parse_repeat(line_index);
     if (strcmp(ty, T_WHILE)  == 0) return parse_while(line_index);
     if (strcmp(ty, T_IF)     == 0) return parse_if(line_index);
     if (strcmp(ty, T_ASK)    == 0) return parse_ask();
     if (strcmp(ty, T_ADD)    == 0) return parse_add_stmt();
+    if (strcmp(ty, "RANDOM") == 0) return parse_random_stmt();
+    if (strcmp(ty, "REMOVE") == 0) return parse_remove_stmt();
+    if (strcmp(ty, "SWAP")   == 0) return parse_swap_stmt();
+    if (strcmp(ty, "REVERSE")== 0) return parse_reverse_stmt();
+    if (strcmp(ty, "EACH")   == 0) return parse_each_stmt(line_index);
+
+    /* array index assignment: fruits[1] be "mango". */
+    if (strcmp(ty, T_IDENT) == 0 && tok_peek(T_LBRACK, 1)) {
+        char aname[64];
+        strncpy(aname, t->value, 63);
+        tok_consume(); /* name  */
+        tok_consume(); /* [     */
+        Node *idx = parse_expression();
+        tok_consume(); /* ]     */
+        if (tok_is(T_BE) || tok_is("ASSIGN")) tok_consume();
+        Node *n  = node_new(NODE_ARR_INSERT); /* reuse with flag 'S' = set */
+        strncpy(n->name, aname, 63);
+        n->left  = parse_expression(); /* value */
+        n->right = idx;                /* index */
+        n->value[0] = 'S';             /* flag: set/replace */
+        return n;
+    }
 
     /* bare assignment: x be 10. */
     if (strcmp(ty, T_IDENT) == 0 && tok_peek(T_BE, 1)) {

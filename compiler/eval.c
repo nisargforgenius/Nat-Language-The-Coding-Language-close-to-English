@@ -186,7 +186,7 @@ void eval(Node *n, char *out, int out_size) {
 
     case NODE_VAR_IDX: {
         Variable *v = find_var(n->name);
-        if (!v || !v->is_array) {
+        if (!v) {
             char _what[256];
             snprintf(_what, sizeof(_what),
                 "'%s' is not an array — cannot use index [ ]", n->name);
@@ -197,11 +197,24 @@ void eval(Node *n, char *out, int out_size) {
         char idxstr[MAX_STR] = {0};
         eval(n->left, idxstr, MAX_STR);
         int idx = atoi(idxstr);
-        if (idx < 0 || idx >= v->arr_len) {
-            err_index_range(g_current_line, n->name, idx, v->arr_len);
-            return;
+
+        if (v->is_array) {
+            /* array index */
+            if (idx < 0 || idx >= v->arr_len) {
+                err_index_range(g_current_line, n->name, idx, v->arr_len);
+                return;
+            }
+            strncpy(out, v->arr[idx], out_size-1);
+        } else {
+            /* string character index */
+            int slen = (int)strlen(v->value);
+            if (idx < 0 || idx >= slen) {
+                err_index_range(g_current_line, n->name, idx, slen);
+                return;
+            }
+            out[0] = v->value[idx];
+            out[1] = '\0';
         }
-        strncpy(out, v->arr[idx], out_size-1);
         return;
     }
 
@@ -248,6 +261,15 @@ void eval(Node *n, char *out, int out_size) {
 
     /* ── length of x ── */
     case NODE_LENGTH: {
+        /* if left is a variable that is an array, return element count */
+        if (n->left && n->left->kind == NODE_VAR) {
+            Variable *v = find_var(n->left->name);
+            if (v && v->is_array) {
+                snprintf(out, out_size, "%d", v->arr_len);
+                return;
+            }
+        }
+        /* otherwise return string length */
         char val[MAX_STR]={0};
         eval(n->left, val, MAX_STR);
         snprintf(out, out_size, "%d", (int)strlen(val));
@@ -292,7 +314,290 @@ void eval(Node *n, char *out, int out_size) {
         return;
     }
 
-    /* ── arithmetic ── */
+    /* ── text of x — number to string ── */
+    case NODE_TEXT_OF: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        strncpy(out, val, out_size-1);
+        return;
+    }
+
+    /* ── repeat "ha" N times ── */
+    case NODE_STR_REPEAT: {
+        char str[MAX_STR]={0}, cnt[MAX_STR]={0};
+        eval(n->left,  str, MAX_STR);
+        eval(n->right, cnt, MAX_STR);
+        int times = atoi(cnt);
+        if (times < 0) times = 0;
+        int slen = (int)strlen(str);
+        int pos  = 0;
+        for (int i = 0; i < times && pos < out_size - 1; i++) {
+            int space = out_size - 1 - pos;
+            int copy  = slen < space ? slen : space;
+            strncpy(out + pos, str, copy);
+            pos += copy;
+        }
+        out[pos] = '\0';
+        return;
+    }
+
+    /* ── reverse of x — string or array ── */
+    case NODE_REVERSE: {
+        /* if left is array var — return reversed as space-joined string */
+        if (n->left && n->left->kind == NODE_VAR) {
+            Variable *v = find_var(n->left->name);
+            if (v && v->is_array) {
+                int rem = out_size - 1;
+                for (int i = v->arr_len - 1; i >= 0 && rem > 0; i--) {
+                    strncat(out, v->arr[i], rem);
+                    rem -= (int)strlen(v->arr[i]);
+                    if (i > 0 && rem > 1) { strcat(out, " "); rem--; }
+                }
+                return;
+            }
+        }
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        int len = (int)strlen(val);
+        for (int i = 0; i < len && i < out_size-1; i++)
+            out[i] = val[len - 1 - i];
+        out[len < out_size-1 ? len : out_size-1] = '\0';
+        return;
+    }
+
+    /* ── first N of x ── */
+    case NODE_FIRST_N: {
+        char cnt[MAX_STR]={0}, src[MAX_STR]={0};
+        eval(n->left,  cnt, MAX_STR);
+        eval(n->right, src, MAX_STR);
+        int N = atoi(cnt);
+        if (N < 0) N = 0;
+        if (N > (int)strlen(src)) N = (int)strlen(src);
+        strncpy(out, src, N < out_size-1 ? N : out_size-1);
+        out[N < out_size-1 ? N : out_size-1] = '\0';
+        return;
+    }
+
+    /* ── last N of x ── */
+    case NODE_LAST_N: {
+        char cnt[MAX_STR]={0}, src[MAX_STR]={0};
+        eval(n->left,  cnt, MAX_STR);
+        eval(n->right, src, MAX_STR);
+        int N   = atoi(cnt);
+        int len = (int)strlen(src);
+        if (N < 0) N = 0;
+        if (N > len) N = len;
+        strncpy(out, src + (len - N), out_size-1);
+        return;
+    }
+
+    /* ── first of arr ── */
+    case NODE_FIRST_ELEM: {
+        if (n->left && n->left->kind == NODE_VAR) {
+            Variable *v = find_var(n->left->name);
+            if (v && v->is_array) {
+                if (v->arr_len == 0) {
+                    err_empty_array_op(g_current_line, "first", n->left->name);
+                    return;
+                }
+                strncpy(out, v->arr[0], out_size-1);
+                return;
+            }
+        }
+        /* fallback: first char of string */
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        if (val[0]) { out[0] = val[0]; out[1] = '\0'; }
+        return;
+    }
+
+    /* ── last of arr ── */
+    case NODE_LAST_ELEM: {
+        if (n->left && n->left->kind == NODE_VAR) {
+            Variable *v = find_var(n->left->name);
+            if (v && v->is_array) {
+                if (v->arr_len == 0) {
+                    err_empty_array_op(g_current_line, "last", n->left->name);
+                    return;
+                }
+                strncpy(out, v->arr[v->arr_len-1], out_size-1);
+                return;
+            }
+        }
+        /* fallback: last char of string */
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        int len = (int)strlen(val);
+        if (len > 0) { out[0] = val[len-1]; out[1] = '\0'; }
+        return;
+    }
+
+    /* ── x is even ── */
+    case NODE_IS_EVEN: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        long long iv = (long long)atof(val);
+        strncpy(out, (iv % 2 == 0) ? "1" : "0", out_size-1);
+        return;
+    }
+
+    /* ── x is odd ── */
+    case NODE_IS_ODD: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        long long iv = (long long)atof(val);
+        strncpy(out, (iv % 2 != 0) ? "1" : "0", out_size-1);
+        return;
+    }
+    /* ── clamp x from A to B ── */
+    case NODE_CLAMP: {
+        char val[MAX_STR]={0}, lo[MAX_STR]={0}, hi[MAX_STR]={0};
+        eval(n->left,    val, MAX_STR);
+        eval(n->args[0], lo,  MAX_STR);
+        eval(n->args[1], hi,  MAX_STR);
+        double v = atof(val), a = atof(lo), b = atof(hi);
+        if (v < a) v = a;
+        if (v > b) v = b;
+        fmt_num(out, out_size, v);
+        return;
+    }
+
+    case NODE_MAX: {
+        char l[MAX_STR]={0}, r[MAX_STR]={0};
+        eval(n->left,  l, MAX_STR);
+        eval(n->right, r, MAX_STR);
+        double a = atof(l), b = atof(r);
+        fmt_num(out, out_size, a > b ? a : b);
+        return;
+    }
+
+    /* ── min of a and b ── */
+    case NODE_MIN: {
+        char l[MAX_STR]={0}, r[MAX_STR]={0};
+        eval(n->left,  l, MAX_STR);
+        eval(n->right, r, MAX_STR);
+        double a = atof(l), b = atof(r);
+        fmt_num(out, out_size, a < b ? a : b);
+        return;
+    }
+
+    /* ── floor of x ── */
+    case NODE_FLOOR: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        fmt_num(out, out_size, floor(atof(val)));
+        return;
+    }
+
+    /* ── ceil of x ── */
+    case NODE_CEIL: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        fmt_num(out, out_size, ceil(atof(val)));
+        return;
+    }
+
+    /* ── x is number ── */
+    case NODE_IS_NUMBER: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        strncpy(out, is_number(val) ? "1" : "0", out_size-1);
+        return;
+    }
+
+    /* ── x is text ── */
+    case NODE_IS_TEXT: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        strncpy(out, is_number(val) ? "0" : "1", out_size-1);
+        return;
+    }
+    case NODE_TRIM: {
+        char val[MAX_STR] = {0};
+        eval(n->left, val, MAX_STR);
+        /* trim leading */
+        char *start = val;
+        while (*start == ' ' || *start == '\t') start++;
+        /* trim trailing */
+        int end = (int)strlen(start) - 1;
+        while (end >= 0 && (start[end] == ' ' || start[end] == '\t')) end--;
+        start[end + 1] = '\0';
+        strncpy(out, start, out_size - 1);
+        return;
+    }
+
+    /* ── replace "A" with "B" in x ── */
+    case NODE_REPLACE: {
+        char src[MAX_STR]  = {0};
+        char find[MAX_STR] = {0};
+        char rep[MAX_STR]  = {0};
+        eval(n->args[0], find, MAX_STR);   /* search  */
+        eval(n->args[1], rep,  MAX_STR);   /* replace */
+        eval(n->args[2], src,  MAX_STR);   /* source  */
+        int flen = (int)strlen(find);
+        if (flen == 0) { strncpy(out, src, out_size - 1); return; }
+        char result[MAX_STR] = {0};
+        int  ri = 0;
+        char *p = src;
+        while (*p && ri < MAX_STR - 1) {
+            if (strncmp(p, find, flen) == 0) {
+                int rlen = (int)strlen(rep);
+                strncpy(result + ri, rep, MAX_STR - ri - 1);
+                ri += rlen;
+                p  += flen;
+            } else {
+                result[ri++] = *p++;
+            }
+        }
+        result[ri] = '\0';
+        strncpy(out, result, out_size - 1);
+        return;
+    }
+
+    /* ── split x by "sep" — stores as array, returns first element ── */
+    case NODE_SPLIT: {
+        char src[MAX_STR] = {0};
+        char sep[MAX_STR] = {0};
+        eval(n->left,  src, MAX_STR);
+        eval(n->right, sep, MAX_STR);
+        /* result stored in g_split_result — accessed via split_result var */
+        /* We store split result into a special variable __split__ */
+        if (g_var_count >= MAX_VARS) { err_var_overflow(); return; }
+        Variable *v = NULL;
+        /* find or create __split__ */
+        for (int i = g_var_count - 1; i >= 0; i--)
+            if (strcmp(g_vars[i].name, "__split__") == 0) { v = &g_vars[i]; break; }
+        if (!v) {
+            v = &g_vars[g_var_count++];
+            strncpy(v->name, "__split__", 63);
+        }
+        memset(v->arr, 0, sizeof(v->arr));
+        v->is_array = 1;
+        v->arr_len  = 0;
+        int slen = (int)strlen(sep);
+        if (slen == 0) {
+            strncpy(v->arr[v->arr_len++], src, MAX_STR - 1);
+        } else {
+            char tmp[MAX_STR]; strncpy(tmp, src, MAX_STR - 1);
+            char *p = tmp;
+            while (*p && v->arr_len < MAX_ARRAY_ELEM) {
+                char *found = strstr(p, sep);
+                if (found) {
+                    int seglen = (int)(found - p);
+                    char seg[MAX_STR] = {0};
+                    strncpy(seg, p, seglen < MAX_STR - 1 ? seglen : MAX_STR - 1);
+                    strncpy(v->arr[v->arr_len++], seg, MAX_STR - 1);
+                    p = found + slen;
+                } else {
+                    strncpy(v->arr[v->arr_len++], p, MAX_STR - 1);
+                    break;
+                }
+            }
+        }
+        /* return first element as value, array accessible via __split__ */
+        if (v->arr_len > 0) strncpy(out, v->arr[0], out_size - 1);
+        return;
+    }
     case NODE_ADD_EXPR:
     case NODE_SUB_EXPR:
     case NODE_MUL_EXPR:
@@ -300,6 +605,24 @@ void eval(Node *n, char *out, int out_size) {
     case NODE_MOD_EXPR:
     case NODE_POW_EXPR: {
         char l[MAX_STR]={0}, r[MAX_STR]={0};
+
+        /* check for array used in math — left side */
+        if (n->left && n->left->kind == NODE_VAR) {
+            Variable *vl = find_var(n->left->name);
+            if (vl && vl->is_array) {
+                err_array_in_math(g_current_line, n->left->name);
+                return;
+            }
+        }
+        /* check for array used in math — right side */
+        if (n->right && n->right->kind == NODE_VAR) {
+            Variable *vr = find_var(n->right->name);
+            if (vr && vr->is_array) {
+                err_array_in_math(g_current_line, n->right->name);
+                return;
+            }
+        }
+
         eval(n->left,  l, MAX_STR);
         eval(n->right, r, MAX_STR);
 
@@ -326,14 +649,21 @@ void eval(Node *n, char *out, int out_size) {
                     break;
             }
             fmt_num(out, out_size, res);
+        } else if (n->kind == NODE_ADD_EXPR) {
+            /* string + string → concat (only + is valid for strings) */
+            strncpy(out, l, out_size-1);
+            strncat(out, r, out_size-1-strlen(out));
         } else {
-            /* string + string → concat */
-            if (n->kind == NODE_ADD_EXPR) {
-                strncpy(out, l, out_size-1);
-                strncat(out, r, out_size-1-strlen(out));
-            } else {
-                strncpy(out, l, out_size-1);
-            }
+            /* math op on text — fire error */
+            /* figure out which side is text for a helpful message */
+            if (!is_number(l) && n->left && n->left->kind == NODE_VAR)
+                err_math_on_text(g_current_line, n->left->name);
+            else if (!is_number(r) && n->right && n->right->kind == NODE_VAR)
+                err_math_on_text(g_current_line, n->right->name);
+            else
+                nat_error(g_current_line,
+                    "cannot do math on a text value",
+                    "make sure both sides of the operator are numbers");
         }
         return;
     }
@@ -371,6 +701,18 @@ void eval(Node *n, char *out, int out_size) {
             }
         }
         strncpy(out, cmp ? "1" : "0", out_size-1);
+        return;
+    }
+
+    /* ── random from A to B (expression style) ── */
+    case NODE_RANDOM: {
+        char lo[MAX_STR]={0}, hi[MAX_STR]={0};
+        eval(n->left,  lo, MAX_STR);
+        eval(n->right, hi, MAX_STR);
+        int a = atoi(lo), b = atoi(hi);
+        if (a > b) { int tmp = a; a = b; b = tmp; }
+        int r = a + rand() % (b - a + 1);
+        fmt_num(out, out_size, r);
         return;
     }
 

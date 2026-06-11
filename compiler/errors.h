@@ -77,6 +77,7 @@ static inline const char *nat_suggest(const char *word,
    PRINT HELPERS
    ───────────────────────────────────────────────────────────────── */
 static inline void nat_error(int line, const char *what, const char *hint) {
+    if (line == -1) return;   /* pre-scan suppression */
     if (line > 0)
         fprintf(stderr, "\nNAT error on line %d: %s\n", line, what);
     else
@@ -88,6 +89,7 @@ static inline void nat_error(int line, const char *what, const char *hint) {
 }
 
 static inline void nat_warning(int line, const char *what, const char *hint) {
+    if (line == -1) return;   /* pre-scan suppression */
     if (line > 0)
         fprintf(stderr, "\nNAT warning on line %d: %s\n", line, what);
     else
@@ -246,3 +248,98 @@ static inline void err_func_overflow(void) {
 }
 
 #endif /* ERRORS_H */
+
+/* ── v3.4 error stretch ─────────────────────────────────────────── */
+
+/* call before define */
+static inline void err_call_before_define(int line, const char *fname) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "function '%s' is called before it is defined", fname);
+    snprintf(hint, sizeof(hint),
+        "move the definition of '%s' above the line where you call it", fname);
+    nat_error(line, what, hint);
+}
+
+/* step zero */
+static inline void err_step_zero(int line) {
+    nat_error(line,
+        "step value cannot be 0 in repeat loop",
+        "use a non-zero step value like step 1 or step 2");
+}
+
+/* repeat negative/zero count */
+static inline void err_repeat_count(int line) {
+    nat_error(line,
+        "repeat count cannot be negative or zero",
+        "use a positive number like:  repeat 5 times:");
+}
+
+/* constant reassignment */
+static inline void err_const_reassign(int line, const char *name) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "'%s' is a constant and cannot be changed", name);
+    snprintf(hint, sizeof(hint),
+        "use 'let' with a different name, or remove the 'fix' declaration");
+    nat_error(line, what, hint);
+}
+
+/* bad type in math */
+static inline void err_math_on_text(int line, const char *varname) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "cannot do math on '%s' — it is text not a number", varname);
+    snprintf(hint, sizeof(hint),
+        "use num(%s) to convert it first, or make sure it holds a number",
+        varname);
+    nat_error(line, what, hint);
+}
+
+/* array used in math */
+static inline void err_array_in_math(int line, const char *name) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "'%s' is an array and cannot be used in math directly", name);
+    snprintf(hint, sizeof(hint),
+        "access a specific element like %s[0] instead", name);
+    nat_error(line, what, hint);
+}
+
+/* ── v3.4 p5 array/string errors ───────────────────────────────── */
+
+static inline void err_insert_range(int line, const char *name, int idx, int size) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "insert index %d is out of range for '%s' (size is %d)", idx, name, size);
+    snprintf(hint, sizeof(hint),
+        "valid insert positions are 0 to %d", size);
+    nat_error(line, what, hint);
+}
+
+static inline void err_remove_range(int line, const char *name, int idx, int size) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "remove index %d is out of range for '%s' (size is %d)", idx, name, size);
+    snprintf(hint, sizeof(hint),
+        "valid indexes are 0 to %d", size - 1);
+    nat_error(line, what, hint);
+}
+
+static inline void err_empty_array_op(int line, const char *op, const char *name) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "cannot '%s' from '%s' — array is empty", op, name);
+    snprintf(hint, sizeof(hint),
+        "add elements first with:  add <value> to %s.", name);
+    nat_error(line, what, hint);
+}
+
+static inline void err_swap_range(int line, const char *name, int idx, int size) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "swap index %d is out of range for '%s' (size is %d)", idx, name, size);
+    snprintf(hint, sizeof(hint),
+        "valid indexes are 0 to %d", size - 1);
+    nat_error(line, what, hint);
+}

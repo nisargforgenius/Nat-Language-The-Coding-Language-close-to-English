@@ -64,6 +64,35 @@ static const KW keywords[] = {
     {"contains", T_CONTAINS},
     {"abs",      T_ABS     },
     {"round",    T_ROUND   },
+    /* v3.4 string stdlib */
+    {"trim",     "TRIM"    },
+    {"replace",  "REPLACE" },
+    {"split",    "SPLIT"   },
+    {"by",       "BY"      },
+    /* v3.4 math stdlib */
+    {"max",      "MAX"     },
+    {"min",      "MIN"     },
+    {"floor",    "FLOOR"   },
+    {"ceil",     "CEIL"    },
+    /* v3.4 type checking */
+    {"number",   "NUMBER_T"},
+    {"text",     "TEXT_T"  },
+    /* v3.4 p5 — array/string ops */
+    {"reverse",  "REVERSE" },
+    {"first",    "FIRST"   },
+    {"last",     "LAST"    },
+    {"remove",   "REMOVE"  },
+    {"swap",     "SWAP"    },
+    {"even",     "EVEN"    },
+    {"odd",      "ODD"     },
+    {"at",       "AT"      },
+    /* v3.4 p6 — each loop, clamp, online */
+    {"each",     "EACH"    },
+    {"clamp",    "CLAMP"   },
+    {"online",   "ONLINE"  },
+    {"inline",   "ONLINE"  },
+    {"random",   "RANDOM"  },
+    {"equal",    "EQUAL"   },
     /* number wrapper */
     {"num",      T_NUM     },
     {"int",      T_NUM     },   /* legacy alias */

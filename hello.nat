@@ -15,7 +15,7 @@ show("My name is " and name).
 # ── 2. Constants  (fix: one line, no dot, immutable) ─────────
 fix MAX 100
 fix GREETING Welcome
-fix VERSION 3.0
+fix VERSION 3.4
 
 show(MAX).
 show(GREETING).
