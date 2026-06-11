@@ -1,0 +1,215 @@
+# ═══════════════════════════════════════════════════════
+#  geometry.tree — NAT v3.5 Official Geometry Library
+#  Contains: 2D shapes, 3D shapes, coordinate geometry,
+#            polygons, vectors, programming geometry
+# ═══════════════════════════════════════════════════════
+
+use math.tree.
+
+# ════════════════════════════════
+#  2D SHAPES
+# ════════════════════════════════
+
+# ── Square ───────────────────────────────────────────────
+make area_square with s inside:
+    give s * s.
+end.
+
+make perimeter_square with s inside:
+    give 4 * s.
+end.
+
+# ── Rectangle ────────────────────────────────────────────
+make area_rect with l w inside:
+    give l * w.
+end.
+
+make perimeter_rect with l w inside:
+    give 2 * (l + w).
+end.
+
+# ── Triangle ─────────────────────────────────────────────
+make area_triangle with b h inside:
+    give (b * h) / 2.
+end.
+
+make perimeter_triangle with a b c inside:
+    give a + b + c.
+end.
+
+# Heron's formula — area from 3 sides
+make area_triangle_heron with a b c inside:
+    let s be (a + b + c) / 2.
+    give sqrt(s * (s-a) * (s-b) * (s-c)).
+end.
+
+# ── Circle ───────────────────────────────────────────────
+make area_circle with r inside:
+    give PI * r * r.
+end.
+
+make circumference with r inside:
+    give 2 * PI * r.
+end.
+
+# ── Parallelogram ────────────────────────────────────────
+make area_parallelogram with b h inside:
+    give b * h.
+end.
+
+# ── Trapezoid ────────────────────────────────────────────
+make area_trapezoid with a b h inside:
+    give ((a + b) * h) / 2.
+end.
+
+# ── Rhombus ──────────────────────────────────────────────
+make area_rhombus with d1 d2 inside:
+    give (d1 * d2) / 2.
+end.
+
+# ── Ellipse ──────────────────────────────────────────────
+make area_ellipse with a b inside:
+    give PI * a * b.
+end.
+
+# ════════════════════════════════
+#  POLYGONS
+# ════════════════════════════════
+
+make perimeter_polygon with n s inside:
+    give n * s.
+end.
+
+make area_polygon with n s inside:
+    give (n * s * s) / (4 * tan_deg(180 / n)).
+end.
+
+make interior_angle with n inside:
+    give ((n - 2) * 180) / n.
+end.
+
+make angle_sum with n inside:
+    give (n - 2) * 180.
+end.
+
+# ════════════════════════════════
+#  3D SHAPES
+# ════════════════════════════════
+
+# ── Cube ─────────────────────────────────────────────────
+make volume_cube with s inside:
+    give s * s * s.
+end.
+
+make surface_cube with s inside:
+    give 6 * s * s.
+end.
+
+# ── Cuboid ───────────────────────────────────────────────
+make volume_cuboid with l w h inside:
+    give l * w * h.
+end.
+
+make surface_cuboid with l w h inside:
+    give 2 * (l*w + l*h + w*h).
+end.
+
+# ── Sphere ───────────────────────────────────────────────
+make volume_sphere with r inside:
+    give (4 / 3) * PI * r * r * r.
+end.
+
+make surface_sphere with r inside:
+    give 4 * PI * r * r.
+end.
+
+# ── Cylinder ─────────────────────────────────────────────
+make volume_cylinder with r h inside:
+    give PI * r * r * h.
+end.
+
+make surface_cylinder with r h inside:
+    give 2 * PI * r * (r + h).
+end.
+
+# ── Cone ─────────────────────────────────────────────────
+make volume_cone with r h inside:
+    give (1 / 3) * PI * r * r * h.
+end.
+
+make surface_cone with r slant inside:
+    give PI * r * (r + slant).
+end.
+
+# ── Pyramid ──────────────────────────────────────────────
+make volume_pyramid with base_area h inside:
+    give (1 / 3) * base_area * h.
+end.
+
+# ════════════════════════════════
+#  COORDINATE GEOMETRY
+# ════════════════════════════════
+
+make distance with x1 y1 x2 y2 inside:
+    give sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1)).
+end.
+
+make midpoint_x with x1 x2 inside:
+    give (x1 + x2) / 2.
+end.
+
+make midpoint_y with y1 y2 inside:
+    give (y1 + y2) / 2.
+end.
+
+make slope with x1 y1 x2 y2 inside:
+    if x2 - x1 == 0:
+        show "NAT error: slope undefined — vertical line, higher mammal!".
+        give 0.
+    end.
+    give (y2 - y1) / (x2 - x1).
+end.
+
+# ════════════════════════════════
+#  VECTOR MATH
+# ════════════════════════════════
+
+make magnitude with x y inside:
+    give sqrt(x*x + y*y).
+end.
+
+make magnitude_3d with x y z inside:
+    give sqrt(x*x + y*y + z*z).
+end.
+
+make dot_product with x1 y1 x2 y2 inside:
+    give x1*x2 + y1*y2.
+end.
+
+make dot_product_3d with x1 y1 z1 x2 y2 z2 inside:
+    give x1*x2 + y1*y2 + z1*z2.
+end.
+
+make cross_product with x1 y1 x2 y2 inside:
+    give x1*y2 - y1*x2.
+end.
+
+# ════════════════════════════════
+#  PROGRAMMING GEOMETRY
+# ════════════════════════════════
+
+make bounding_box_area with w h inside:
+    give w * h.
+end.
+
+make aspect_ratio with w h inside:
+    give w / h.
+end.
+
+make triangle_area_coords with x1 y1 x2 y2 x3 y3 inside:
+    let val be x1*(y2-y3) + x2*(y3-y1) + x3*(y1-y2).
+    if val < 0:
+        let val be 0 - val.
+    end.
+    give val / 2.
+end.

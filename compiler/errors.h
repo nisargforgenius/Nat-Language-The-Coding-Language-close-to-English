@@ -343,3 +343,71 @@ static inline void err_swap_range(int line, const char *name, int idx, int size)
         "valid indexes are 0 to %d", size - 1);
     nat_error(line, what, hint);
 }
+
+/* ── Personality system — random friendly word in errors ─────────── */
+#include <time.h>
+
+static inline const char *nat_personality(void) {
+    static const char *words[] = {
+        "mate", "bud", "dude", "pal", "chief",
+        "boss", "champ", "higher mammal", "friend", "legend"
+    };
+    return words[rand() % 10];
+}
+
+/* geometry-specific humorous errors */
+static inline void err_square_two_sides(int line) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "squares have equal sides, %s!", nat_personality());
+    snprintf(hint, sizeof(hint),
+        "use:  area_square(5).\n"
+        "  or use:  area_rect(4, 6).  for different sides");
+    nat_error(line, what, hint);
+}
+
+static inline void err_sphere_one_arg(int line) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "spheres only need radius, %s!", nat_personality());
+    snprintf(hint, sizeof(hint),
+        "use:  volume_sphere(5).");
+    nat_error(line, what, hint);
+}
+
+static inline void err_circle_one_arg(int line) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "circles only need radius, %s!", nat_personality());
+    snprintf(hint, sizeof(hint),
+        "use:  area_circle(5).  or  circumference(5).");
+    nat_error(line, what, hint);
+}
+
+static inline void err_rect_not_circumference(int line) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "rectangles have perimeter not circumference, %s!", nat_personality());
+    snprintf(hint, sizeof(hint),
+        "use:  perimeter_rect(4, 6).");
+    nat_error(line, what, hint);
+}
+
+static inline void err_triangle_area_args(int line) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "triangle area needs base AND height, %s!", nat_personality());
+    snprintf(hint, sizeof(hint),
+        "use:  area_triangle(base, height).\n"
+        "  or use:  area_triangle_heron(a, b, c).  if you have all 3 sides");
+    nat_error(line, what, hint);
+}
+
+static inline void err_bad_conversion(int line, const char *from, const char *to) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "cannot convert '%s' to '%s', %s!", from, to, nat_personality());
+    snprintf(hint, sizeof(hint),
+        "check convert.tree for valid conversions");
+    nat_error(line, what, hint);
+}

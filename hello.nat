@@ -6,7 +6,7 @@
 let x    be num(5).
 let y    be num(10).
 let pi   be num(3.14).
-let name be Nisarg.
+let name be "Nisarg".
 
 show(x + y).
 show(pi * 2).

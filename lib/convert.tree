@@ -1,0 +1,301 @@
+# ═══════════════════════════════════════════════════════
+#  convert.tree — NAT v3.5 Official Conversion Library
+# ═══════════════════════════════════════════════════════
+
+use math.tree.
+
+# ════════════════════════════════
+#  LENGTH
+# ════════════════════════════════
+make cm_to_mm with n inside:
+    give n * 10.
+end.
+make m_to_cm with n inside:
+    give n * 100.
+end.
+make km_to_m with n inside:
+    give n * 1000.
+end.
+make mm_to_cm with n inside:
+    give n / 10.
+end.
+make cm_to_m with n inside:
+    give n / 100.
+end.
+make m_to_km with n inside:
+    give n / 1000.
+end.
+make inch_to_cm with n inside:
+    give n * 2.54.
+end.
+make cm_to_inch with n inside:
+    give n / 2.54.
+end.
+make foot_to_m with n inside:
+    give n * 0.3048.
+end.
+make m_to_foot with n inside:
+    give n / 0.3048.
+end.
+make yard_to_m with n inside:
+    give n * 0.9144.
+end.
+make m_to_yard with n inside:
+    give n / 0.9144.
+end.
+make mile_to_km with n inside:
+    give n * 1.60934.
+end.
+make km_to_mile with n inside:
+    give n / 1.60934.
+end.
+
+# ════════════════════════════════
+#  AREA
+# ════════════════════════════════
+make m2_to_cm2 with n inside:
+    give n * 10000.
+end.
+make cm2_to_m2 with n inside:
+    give n / 10000.
+end.
+make hectare_to_m2 with n inside:
+    give n * 10000.
+end.
+make m2_to_hectare with n inside:
+    give n / 10000.
+end.
+make acre_to_m2 with n inside:
+    give n * 4046.86.
+end.
+make m2_to_acre with n inside:
+    give n / 4046.86.
+end.
+make sqft_to_m2 with n inside:
+    give n * 0.0929.
+end.
+make m2_to_sqft with n inside:
+    give n / 0.0929.
+end.
+
+# ════════════════════════════════
+#  VOLUME
+# ════════════════════════════════
+make L_to_mL with n inside:
+    give n * 1000.
+end.
+make mL_to_L with n inside:
+    give n / 1000.
+end.
+make m3_to_L with n inside:
+    give n * 1000.
+end.
+make L_to_m3 with n inside:
+    give n / 1000.
+end.
+make gallon_to_L with n inside:
+    give n * 3.78541.
+end.
+make L_to_gallon with n inside:
+    give n / 3.78541.
+end.
+
+# ════════════════════════════════
+#  MASS
+# ════════════════════════════════
+make g_to_mg with n inside:
+    give n * 1000.
+end.
+make mg_to_g with n inside:
+    give n / 1000.
+end.
+make kg_to_g with n inside:
+    give n * 1000.
+end.
+make g_to_kg with n inside:
+    give n / 1000.
+end.
+make tonne_to_kg with n inside:
+    give n * 1000.
+end.
+make kg_to_tonne with n inside:
+    give n / 1000.
+end.
+make kg_to_lbs with n inside:
+    give n * 2.20462.
+end.
+make lbs_to_kg with n inside:
+    give n / 2.20462.
+end.
+make g_to_oz with n inside:
+    give n / 28.3495.
+end.
+make oz_to_g with n inside:
+    give n * 28.3495.
+end.
+
+# ════════════════════════════════
+#  TIME
+# ════════════════════════════════
+make sec_to_ms with n inside:
+    give n * 1000.
+end.
+make ms_to_sec with n inside:
+    give n / 1000.
+end.
+make min_to_sec with n inside:
+    give n * 60.
+end.
+make sec_to_min with n inside:
+    give n / 60.
+end.
+make hour_to_min with n inside:
+    give n * 60.
+end.
+make min_to_hour with n inside:
+    give n / 60.
+end.
+make hour_to_sec with n inside:
+    give n * 3600.
+end.
+make sec_to_hour with n inside:
+    give n / 3600.
+end.
+make day_to_hour with n inside:
+    give n * 24.
+end.
+make hour_to_day with n inside:
+    give n / 24.
+end.
+make week_to_day with n inside:
+    give n * 7.
+end.
+make day_to_week with n inside:
+    give n / 7.
+end.
+make year_to_day with n inside:
+    give n * 365.
+end.
+make day_to_year with n inside:
+    give n / 365.
+end.
+
+# ════════════════════════════════
+#  SPEED
+# ════════════════════════════════
+make ms_to_kmh with n inside:
+    give n * 3.6.
+end.
+make kmh_to_ms with n inside:
+    give n / 3.6.
+end.
+make kmh_to_mph with n inside:
+    give n / 1.60934.
+end.
+make mph_to_kmh with n inside:
+    give n * 1.60934.
+end.
+
+# ════════════════════════════════
+#  TEMPERATURE
+# ════════════════════════════════
+make cel_to_fahr with c inside:
+    give (c * 9 / 5) + 32.
+end.
+make fahr_to_cel with f inside:
+    give (f - 32) * 5 / 9.
+end.
+make cel_to_kelvin with c inside:
+    give c + 273.15.
+end.
+make kelvin_to_cel with k inside:
+    give k - 273.15.
+end.
+make fahr_to_kelvin with f inside:
+    give cel_to_kelvin(fahr_to_cel(f)).
+end.
+make kelvin_to_fahr with k inside:
+    give cel_to_fahr(kelvin_to_cel(k)).
+end.
+
+# ════════════════════════════════
+#  ENERGY
+# ════════════════════════════════
+make cal_to_joules with n inside:
+    give n * 4.184.
+end.
+make joules_to_cal with n inside:
+    give n / 4.184.
+end.
+make kwh_to_joules with n inside:
+    give n * 3600000.
+end.
+make joules_to_kwh with n inside:
+    give n / 3600000.
+end.
+
+# ════════════════════════════════
+#  PRESSURE
+# ════════════════════════════════
+make atm_to_pascal with n inside:
+    give n * 101325.
+end.
+make pascal_to_atm with n inside:
+    give n / 101325.
+end.
+make bar_to_pascal with n inside:
+    give n * 100000.
+end.
+make pascal_to_bar with n inside:
+    give n / 100000.
+end.
+make psi_to_pascal with n inside:
+    give n * 6894.76.
+end.
+make pascal_to_psi with n inside:
+    give n / 6894.76.
+end.
+
+# ════════════════════════════════
+#  DATA STORAGE
+# ════════════════════════════════
+make bytes_to_kb with n inside:
+    give n / 1024.
+end.
+make kb_to_bytes with n inside:
+    give n * 1024.
+end.
+make kb_to_mb with n inside:
+    give n / 1024.
+end.
+make mb_to_kb with n inside:
+    give n * 1024.
+end.
+make mb_to_gb with n inside:
+    give n / 1024.
+end.
+make gb_to_mb with n inside:
+    give n * 1024.
+end.
+make gb_to_tb with n inside:
+    give n / 1024.
+end.
+make tb_to_gb with n inside:
+    give n * 1024.
+end.
+make bytes_to_mb with n inside:
+    give n / 1048576.
+end.
+make bytes_to_gb with n inside:
+    give n / 1073741824.
+end.
+
+# ════════════════════════════════
+#  ANGLES
+# ════════════════════════════════
+make deg_to_rad_c with n inside:
+    give n * PI / 180.
+end.
+make rad_to_deg_c with n inside:
+    give n * 180 / PI.
+end.

@@ -29,7 +29,7 @@
 #define MAX_TOKENS      1024
 #define MAX_VARS        512
 #define MAX_CONSTS      128
-#define MAX_FUNCS       128
+#define MAX_FUNCS       512
 #define MAX_LINES       2048
 #define MAX_LINE_LEN    512
 #define MAX_STR         512
@@ -182,6 +182,9 @@ typedef enum {
     NODE_EACH,          /* each item in arr/str: ... end. */
     NODE_SHOW_EACH,     /* show each item in arr. / online / with sep */
     NODE_CLAMP,         /* clamp x from A to B */
+    NODE_USE,           /* use math.tree. */
+    NODE_GRAPH,         /* create graph "title": ... end. */
+    NODE_NEWLINE,       /* newline. / skip. — blank line output */
     NODE_NOOP
 } NodeType;
 
@@ -240,7 +243,29 @@ typedef struct {
     int  param_count;
     int  body_start;
     int  body_end;
+    /* v3.5: store actual body lines for tree-loaded functions */
+    char **body_lines;   /* heap-allocated array of line strings */
+    int    body_line_count;
+    int    is_tree_func; /* 1 if loaded from a .tree file */
 } FuncDef;
+
+/* ─────────────────────────────────────────────
+   GRAPH DEFINITION (v3.5 p3)
+   ───────────────────────────────────────────── */
+#define MAX_POINTS 256
+
+typedef struct {
+    char title[MAX_STR];
+    char x_label[64];
+    char y_label[64];
+    double x_min, x_max, x_step;  /* x_step=0 means auto */
+    double y_min, y_max, y_step;  /* y_step=0 means auto */
+    char graph_type[32];
+    char color[32];
+    double px[MAX_POINTS];
+    double py[MAX_POINTS];
+    int    point_count;
+} GraphDef;
 
 /* ─────────────────────────────────────────────
    GLOBAL STATE
@@ -264,6 +289,13 @@ extern int      g_line_count;
 extern char     g_return_val[MAX_STR];
 extern int      g_has_return;
 
+/* ── v3.5 module system ── */
+#define MAX_IMPORTS     64
+#define MAX_PATH_LEN    512
+extern char     g_imported[MAX_IMPORTS][MAX_PATH_LEN]; /* already loaded trees */
+extern int      g_import_count;
+extern char     g_nat_exe_dir[MAX_PATH_LEN];           /* directory of nat executable */
+
 /* ─────────────────────────────────────────────
    API
    ───────────────────────────────────────────── */
@@ -273,6 +305,7 @@ Node     *parse_expression(void);
 void      eval(Node *n, char *out, int out_size);
 void      execute(Node *n);
 void      execute_block(int start, int end);
+void      execute_func_body(FuncDef *fn);
 Variable *find_var(const char *name);
 Variable *set_var(const char *name, const char *value);
 Constant *find_const(const char *name);

@@ -1,0 +1,192 @@
+# ═══════════════════════════════════════════════════════
+#  string.tree — NAT v3.5 Official String Library
+#  Contains: checks, searching, formatting, analysis
+# ═══════════════════════════════════════════════════════
+
+# ── starts with ──────────────────────────────────────────
+make starts_with with str prefix inside:
+    let plen be length of prefix.
+    let slen be length of str.
+    if plen > slen:
+        give 0.
+    end.
+    let i be 0.
+    while i < plen:
+        if str[i] != prefix[i]:
+            give 0.
+        end.
+        let i be i + 1.
+    end.
+    give 1.
+end.
+
+# ── ends with ────────────────────────────────────────────
+make ends_with with str suffix inside:
+    let suflen be length of suffix.
+    let slen be length of str.
+    if suflen > slen:
+        give 0.
+    end.
+    let start be slen - suflen.
+    let i be 0.
+    while i < suflen:
+        let si be start + i.
+        if str[si] != suffix[i]:
+            give 0.
+        end.
+        let i be i + 1.
+    end.
+    give 1.
+end.
+
+# ── is empty ─────────────────────────────────────────────
+make is_empty with str inside:
+    if length of str == 0:
+        give 1.
+    end.
+    give 0.
+end.
+
+# ── is alpha — only letters ───────────────────────────────
+make is_alpha with str inside:
+    let len be length of str.
+    if len == 0:
+        give 0.
+    end.
+    let i be 0.
+    while i < len:
+        let ch be str[i].
+        if ch < "A" or ch > "z":
+            give 0.
+        end.
+        if ch > "Z" and ch < "a":
+            give 0.
+        end.
+        let i be i + 1.
+    end.
+    give 1.
+end.
+
+# ── is numeric — only digits ──────────────────────────────
+make is_numeric with str inside:
+    let len be length of str.
+    if len == 0:
+        give 0.
+    end.
+    let i be 0.
+    while i < len:
+        let ch be str[i].
+        if ch < "0" or ch > "9":
+            give 0.
+        end.
+        let i be i + 1.
+    end.
+    give 1.
+end.
+
+# ── count occurrences ────────────────────────────────────
+make count_of with needle haystack inside:
+    let count be 0.
+    let nlen be length of needle.
+    let hlen be length of haystack.
+    let i be 0.
+    while i <= hlen - nlen:
+        let match be 1.
+        let j be 0.
+        while j < nlen:
+            let hi be i + j.
+            if haystack[hi] != needle[j]:
+                let match be 0.
+            end.
+            let j be j + 1.
+        end.
+        if match == 1:
+            let count be count + 1.
+        end.
+        let i be i + 1.
+    end.
+    give count.
+end.
+
+# ── index of — first occurrence ───────────────────────────
+make index_of with needle haystack inside:
+    let nlen be length of needle.
+    let hlen be length of haystack.
+    let i be 0.
+    while i <= hlen - nlen:
+        let match be 1.
+        let j be 0.
+        while j < nlen:
+            let hi be i + j.
+            if haystack[hi] != needle[j]:
+                let match be 0.
+            end.
+            let j be j + 1.
+        end.
+        if match == 1:
+            give i.
+        end.
+        let i be i + 1.
+    end.
+    give -1.
+end.
+
+# ── word count ───────────────────────────────────────────
+make word_count with str inside:
+    let len be length of str.
+    if len == 0:
+        give 0.
+    end.
+    let count be 0.
+    let in_word be 0.
+    let i be 0.
+    while i < len:
+        let ch be str[i].
+        if ch == " ":
+            let in_word be 0.
+        else:
+            if in_word == 0:
+                let count be count + 1.
+                let in_word be 1.
+            end.
+        end.
+        let i be i + 1.
+    end.
+    give count.
+end.
+
+# ── title case — first letter upper ───────────────────────
+make title_of with str inside:
+    let result be upper of str[0].
+    let len be length of str.
+    let i be 1.
+    while i < len:
+        let ch be str[i].
+        let prev be str[i - 1].
+        if prev == " ":
+            let result be result and upper of ch.
+        else:
+            let result be result and lower of ch.
+        end.
+        let i be i + 1.
+    end.
+    give result.
+end.
+
+# ── pad left ─────────────────────────────────────────────
+make pad_left with str total_len pad_char inside:
+    let result be str.
+    while length of result < total_len:
+        let result be pad_char and result.
+    end.
+    give result.
+end.
+
+# ── pad right ────────────────────────────────────────────
+make pad_right with str total_len pad_char inside:
+    let result be str.
+    while length of result < total_len:
+        let result be result and pad_char.
+    end.
+    give result.
+end.

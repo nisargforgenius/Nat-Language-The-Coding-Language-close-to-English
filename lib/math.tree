@@ -1,0 +1,274 @@
+# ═══════════════════════════════════════════════════════
+#  math.tree — NAT v3.5 Official Math Library
+#  No num() needed — NAT handles numeric strings natively
+# ═══════════════════════════════════════════════════════
+
+fix PI  3.141592653589793.
+fix TAU 6.283185307179586.
+fix E   2.718281828459045.
+
+# ── sqrt (Newton's method) ───────────────────────────────
+make sqrt with n inside:
+    if n == 0:
+        give 0.
+    end.
+    let g be n / 2.
+    repeat k from 1 to 20 step 1:
+        let g be (g + n / g) / 2.
+    end.
+    give g.
+end.
+
+# ── factorial ────────────────────────────────────────────
+make factorial with n inside:
+    if n < 2:
+        give 1.
+    end.
+    give n * factorial(n - 1).
+end.
+
+# ── GCD ──────────────────────────────────────────────────
+make gcd with a b inside:
+    let x be a.
+    let y be b.
+    while y > 0:
+        let t be x % y.
+        let x be y.
+        let y be t.
+    end.
+    give x.
+end.
+
+# ── LCM ──────────────────────────────────────────────────
+make lcm with a b inside:
+    give a * b / gcd(a, b).
+end.
+
+# ── Is Prime ─────────────────────────────────────────────
+make is_prime with n inside:
+    if n < 2:
+        give 0.
+    end.
+    if n == 2:
+        give 1.
+    end.
+    if n % 2 == 0:
+        give 0.
+    end.
+    let i be 3.
+    while i * i <= n:
+        if n % i == 0:
+            give 0.
+        end.
+        let i be i + 2.
+    end.
+    give 1.
+end.
+
+# ── Degree / Radian ──────────────────────────────────────
+make deg_to_rad with d inside:
+    give d * 3.141592653589793 / 180.
+end.
+
+make rad_to_deg with r inside:
+    give r * 180 / 3.141592653589793.
+end.
+
+# ── Sin (Taylor series) ──────────────────────────────────
+make sin_deg with d inside:
+    let r be d * 3.141592653589793 / 180.
+    let r2 be r * r.
+    let r3 be r2 * r.
+    let r5 be r3 * r2.
+    let r7 be r5 * r2.
+    let r9 be r7 * r2.
+    give r - r3/6 + r5/120 - r7/5040 + r9/362880.
+end.
+
+# ── Cos (Taylor series) ──────────────────────────────────
+make cos_deg with d inside:
+    let r be d * 3.141592653589793 / 180.
+    let r2 be r * r.
+    let r4 be r2 * r2.
+    let r6 be r4 * r2.
+    let r8 be r6 * r2.
+    give 1 - r2/2 + r4/24 - r6/720 + r8/40320.
+end.
+
+# ── Tan ──────────────────────────────────────────────────
+make tan_deg with d inside:
+    let c be cos_deg(d).
+    if c == 0:
+        give 0.
+    end.
+    give sin_deg(d) / c.
+end.
+
+# ── Natural Log ──────────────────────────────────────────
+make ln with n inside:
+    let x be (n - 1) / (n + 1).
+    let x2 be x * x.
+    let x3 be x2 * x.
+    let x5 be x3 * x2.
+    let x7 be x5 * x2.
+    let x9 be x7 * x2.
+    let x11 be x9 * x2.
+    give 2 * (x + x3/3 + x5/5 + x7/7 + x9/9 + x11/11).
+end.
+
+make log10 with n inside:
+    give ln(n) / ln(10).
+end.
+
+# ── Dec to Binary ────────────────────────────────────────
+make dec_to_bin with n inside:
+    if n == 0:
+        give "0".
+    end.
+    let res be "".
+    let val be n.
+    while val > 0:
+        let bit be val % 2.
+        let res be text of bit and res.
+        let val be floor of (val / 2).
+    end.
+    give res.
+end.
+
+# ── Dec to Hex ───────────────────────────────────────────
+make dec_to_hex with n inside:
+    if n == 0:
+        give "0".
+    end.
+    let digits be "0123456789ABCDEF".
+    let res be "".
+    let val be n.
+    while val > 0:
+        let rem be val % 16.
+        let res be digits[rem] and res.
+        let val be floor of (val / 16).
+    end.
+    give res.
+end.
+
+# ── Dec to Octal ─────────────────────────────────────────
+make dec_to_oct with n inside:
+    if n == 0:
+        give "0".
+    end.
+    let res be "".
+    let val be n.
+    while val > 0:
+        let rem be val % 8.
+        let res be text of rem and res.
+        let val be floor of (val / 8).
+    end.
+    give res.
+end.
+
+# ── Bin to Dec ───────────────────────────────────────────
+make bin_to_dec with b inside:
+    let s be text of b.
+    let res be 0.
+    let len be length of s.
+    let i be 0.
+    while i < len:
+        let ch be s[i].
+        let res be res * 2.
+        if ch == "1":
+            let res be res + 1.
+        end.
+        let i be i + 1.
+    end.
+    give res.
+end.
+
+# ── Percent ──────────────────────────────────────────────
+make percent_to_dec with p inside:
+    give p / 100.
+end.
+
+make dec_to_percent with d inside:
+    give d * 100.
+end.
+
+# ── Dec to Roman ─────────────────────────────────────────
+make dec_to_roman with n inside:
+    if n <= 0:
+        give "".
+    end.
+    let res be "".
+    let val be n.
+    while val >= 1000:
+        let res be res and "M".
+        let val be val - 1000.
+    end.
+    while val >= 900:
+        let res be res and "CM".
+        let val be val - 900.
+    end.
+    while val >= 500:
+        let res be res and "D".
+        let val be val - 500.
+    end.
+    while val >= 400:
+        let res be res and "CD".
+        let val be val - 400.
+    end.
+    while val >= 100:
+        let res be res and "C".
+        let val be val - 100.
+    end.
+    while val >= 90:
+        let res be res and "XC".
+        let val be val - 90.
+    end.
+    while val >= 50:
+        let res be res and "L".
+        let val be val - 50.
+    end.
+    while val >= 40:
+        let res be res and "XL".
+        let val be val - 40.
+    end.
+    while val >= 10:
+        let res be res and "X".
+        let val be val - 10.
+    end.
+    while val >= 9:
+        let res be res and "IX".
+        let val be val - 9.
+    end.
+    while val >= 5:
+        let res be res and "V".
+        let val be val - 5.
+    end.
+    while val >= 4:
+        let res be res and "IV".
+        let val be val - 4.
+    end.
+    while val >= 1:
+        let res be res and "I".
+        let val be val - 1.
+    end.
+    give res.
+end.
+
+# ── Improved Ln (more terms for better accuracy) ─────────
+make ln_acc with n inside:
+    let x be (n - 1) / (n + 1).
+    let x2 be x * x.
+    let x3 be x2 * x.
+    let x5 be x3 * x2.
+    let x7 be x5 * x2.
+    let x9 be x7 * x2.
+    let x11 be x9 * x2.
+    let x13 be x11 * x2.
+    let x15 be x13 * x2.
+    let x17 be x15 * x2.
+    give 2 * (x + x3/3 + x5/5 + x7/7 + x9/9 + x11/11 + x13/13 + x15/15 + x17/17).
+end.
+
+make log_base with n base inside:
+    give ln_acc(n) / ln_acc(base).
+end.

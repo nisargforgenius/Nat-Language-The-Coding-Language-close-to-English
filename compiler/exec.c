@@ -1,12 +1,12 @@
 /*
- * exec.c — NAT Language v3.2 Executor
+ * exec.c — NAT Language v3.5
  *
- * v3.2 additions:
- *   NODE_LET_DECLARE  — let x, b, c.   (declare without value)
- *   NODE_ASSIGN       — x be 10.       (assign after declaration)
+ * v3.5 additions:
+ *   NODE_USE — use math.tree. — module import system
  */
 
 #include "nat.h"
+#include <stdlib.h>
 
 void execute(Node *n);
 void execute_block(int start, int end);
@@ -15,10 +15,163 @@ static int is_truthy(const char *s) {
     return (s && strlen(s) > 0 && strcmp(s, "0") != 0);
 }
 
+/* ─────────────────────────────────────────────────────────────────
+   load_tree — find, load and execute a .tree file
+   Search order:
+     1. same directory as the .nat file being run (g_nat_exe_dir)
+     2. lib/ subdirectory next to nat executable
+   ───────────────────────────────────────────────────────────────── */
+static void load_tree(const char *filename, int call_line) {
+    /* check circular import */
+    for (int i = 0; i < g_import_count; i++) {
+        if (strcmp(g_imported[i], filename) == 0)
+            return; /* already loaded — skip silently */
+    }
+
+    /* build candidate paths */
+    char path1[MAX_PATH_LEN * 2] = {0}; /* local: same dir as .nat */
+    char path2[MAX_PATH_LEN * 2] = {0}; /* system: lib/ next to nat */
+
+    snprintf(path1, sizeof(path1), "%s%s", g_nat_exe_dir, filename);
+    snprintf(path2, sizeof(path2), "%slib/%s", g_nat_exe_dir, filename);
+
+    /* try local first, then lib/ */
+    const char *found_path = NULL;
+    FILE *fp = fopen(path1, "r");
+    if (fp) { found_path = path1; }
+    else {
+        fp = fopen(path2, "r");
+        if (fp) found_path = path2;
+    }
+
+    if (!fp) {
+        char what[256], hint[256];
+        snprintf(what, sizeof(what),
+            "cannot find tree file '%s'", filename);
+        snprintf(hint, sizeof(hint),
+            "place '%s' in the same folder as your .nat file, or in the lib/ folder",
+            filename);
+        nat_error(call_line, what, hint);
+        return;
+    }
+
+    /* register as imported BEFORE executing (prevents circular) */
+    if (g_import_count < MAX_IMPORTS)
+        strncpy(g_imported[g_import_count++], filename, MAX_PATH_LEN-1);
+
+    /* save/restore g_lines — heap alloc to avoid stack overflow and support nesting */
+    char (*saved_lines)[MAX_LINE_LEN] = malloc(MAX_LINES * MAX_LINE_LEN);
+    if (!saved_lines) {
+        nat_error(call_line, "out of memory loading tree file", "");
+        fclose(fp); return;
+    }
+    int   saved_count = g_line_count;
+    memcpy(saved_lines, g_lines, sizeof(g_lines));
+
+    g_line_count = 0;
+    char buf[MAX_LINE_LEN];
+    while (fgets(buf, sizeof(buf), fp) && g_line_count < MAX_LINES) {
+        /* strip newline */
+        int len = (int)strlen(buf);
+        if (len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r'))
+            buf[--len] = '\0';
+        if (len > 0 && buf[len-1] == '\r')
+            buf[--len] = '\0';
+        strncpy(g_lines[g_line_count++], buf, MAX_LINE_LEN-1);
+    }
+    fclose(fp);
+
+    /* execute the tree file — registers all its functions */
+    int saved_has_return = g_has_return;
+    char saved_return[MAX_STR];
+    strncpy(saved_return, g_return_val, MAX_STR-1);
+
+    g_has_return = 0;
+    g_return_val[0] = '\0';
+
+    /* register fix constants from tree file before executing */
+    extern void pre_pass_fix(void);
+    pre_pass_fix();
+
+    /* remember how many funcs existed before loading */
+    int funcs_before = g_func_count;
+
+    execute_block(0, g_line_count - 1);
+
+    /* snapshot body lines for every newly registered function */
+    for (int fi = funcs_before; fi < g_func_count; fi++) {
+        FuncDef *fn = &g_funcs[fi];
+        /* skip functions already snapshotted by a nested tree load */
+        if (fn->is_tree_func && fn->body_lines) continue;
+        int bstart = fn->body_start;
+        int bend   = fn->body_end;
+        int bcount = (bend >= bstart && bstart >= 0 && bend < g_line_count)
+                     ? (bend - bstart + 1) : 0;
+        fn->is_tree_func    = 1;
+        fn->body_line_count = bcount;
+        fn->body_lines      = NULL;
+        if (bcount > 0) {
+            fn->body_lines = (char **)malloc(bcount * sizeof(char *));
+            if (fn->body_lines) {
+                for (int li = 0; li < bcount; li++) {
+                    fn->body_lines[li] = (char *)malloc(MAX_LINE_LEN);
+                    if (fn->body_lines[li])
+                        strncpy(fn->body_lines[li],
+                                g_lines[bstart + li], MAX_LINE_LEN-1);
+                }
+            }
+        }
+    }
+
+    /* restore main program state */
+    g_has_return = saved_has_return;
+    strncpy(g_return_val, saved_return, MAX_STR-1);
+    g_line_count = saved_count;
+    memcpy(g_lines, saved_lines, sizeof(g_lines));
+    free(saved_lines);
+
+    (void)found_path;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   execute_func_body — run a function's body, handling tree funcs
+   ───────────────────────────────────────────────────────────────── */
+void execute_func_body(FuncDef *fn) {
+    if (fn->is_tree_func && fn->body_lines && fn->body_line_count > 0) {
+        /* tree function: temporarily swap in its body lines */
+        char (*saved)[MAX_LINE_LEN] = malloc(MAX_LINES * MAX_LINE_LEN);
+        if (!saved) {
+            nat_error(g_current_line, "out of memory executing tree function", "");
+            return;
+        }
+        int saved_count = g_line_count;
+        memcpy(saved, g_lines, sizeof(g_lines));
+
+        g_line_count = fn->body_line_count;
+        for (int i = 0; i < fn->body_line_count; i++)
+            strncpy(g_lines[i], fn->body_lines[i], MAX_LINE_LEN-1);
+
+        execute_block(0, g_line_count - 1);
+
+        g_line_count = saved_count;
+        memcpy(g_lines, saved, sizeof(g_lines));
+        free(saved);
+    } else {
+        /* normal function — body lives in main g_lines */
+        execute_block(fn->body_start, fn->body_end);
+    }
+}
+
 void execute(Node *n) {
     if (!n) return;
 
     switch (n->kind) {
+
+    /* ── use math.tree. — load a tree file ── */
+    case NODE_USE: {
+        load_tree(n->value, g_current_line);
+        return;
+    }
 
     /* ── let name be value ── */
     case NODE_LET: {
@@ -188,7 +341,7 @@ void execute(Node *n) {
         }
         g_has_return    = 0;
         g_return_val[0] = '\0';
-        execute_block(fn->body_start, fn->body_end);
+        execute_func_body(fn);
         g_var_count  = saved_vc;
         g_has_return = saved_ret;
         strncpy(g_return_val, saved_rv, MAX_STR-1);
@@ -591,8 +744,341 @@ void execute(Node *n) {
         return;
     }
 
-    case NODE_NOOP:
-    default:
+    /* ── create graph "title": ... end. ── */
+    case NODE_GRAPH: {
+        GraphDef g;
+        memset(&g, 0, sizeof(GraphDef));
+        strncpy(g.title,       n->value,  MAX_STR-1);
+        strncpy(g.x_label,     "X",       63);
+        strncpy(g.y_label,     "Y",       63);
+        strncpy(g.graph_type,  "linear",  31);
+        strncpy(g.color,       "#3b82f6", 31);
+        g.x_min = 0; g.x_max = 10; g.x_step = 0;
+        g.y_min = 0; g.y_max = 10; g.y_step = 0;
+
+        /* parse config lines */
+        for (int i = n->body_start; i <= n->body_end && i < g_line_count; i++) {
+            tokenize(g_lines[i]);
+            if (g_tok_count == 0) continue;
+            char *ty0 = g_tokens[0].type;
+            char *ty1 = (g_tok_count > 1) ? g_tokens[1].type  : "";
+            char *va1 = (g_tok_count > 1) ? g_tokens[1].value : "";
+
+            /* x axis be "label" */
+            if (strcmp(ty0, "AXIS") == 0 || strcmp(va1, "axis") == 0) {
+                /* handled below */
+            }
+            /* x axis be "label" — tokens: IDENT(x) AXIS BE STRING */
+            if (g_tok_count >= 4 && strcmp(ty1, "AXIS") == 0) {
+                char axis = g_tokens[0].value[0];
+                char *label = g_tokens[3].value;
+                if (axis == 'x' || axis == 'X')
+                    strncpy(g.x_label, label, 63);
+                else
+                    strncpy(g.y_label, label, 63);
+            }
+            /* range x is 0 to 10 — tokens: RANGE IDENT(x) IS NUM TO NUM [STEP/GAP NUM] */
+            if (strcmp(ty0, "RANGE") == 0 && g_tok_count >= 5) {
+                char axis = g_tokens[1].value[0];
+                double lo   = atof(g_tokens[3].value);
+                double hi   = atof(g_tokens[5].value);
+                double step = 0; /* 0 = auto */
+                /* check for step or gap keyword */
+                if (g_tok_count >= 7) {
+                    char *sk = g_tokens[6].type;
+                    if (strcmp(sk, T_STEP)==0 || strcmp(sk,"GAP")==0)
+                        step = atof(g_tokens[7].value);
+                }
+                if (axis == 'x' || axis == 'X') {
+                    g.x_min = lo; g.x_max = hi; g.x_step = step;
+                } else {
+                    g.y_min = lo; g.y_max = hi; g.y_step = step;
+                }
+            }
+            /* type be linear/bar/etc */
+            if (strcmp(ty0, "TYPE") == 0 && g_tok_count >= 3) {
+                strncpy(g.graph_type, g_tokens[2].value, 31);
+            }
+            /* color be "blue" */
+            if (strcmp(ty0, "COLOR") == 0 && g_tok_count >= 3) {
+                char *cv = g_tokens[2].value;
+                /* map common names to hex */
+                if      (strcmp(cv,"blue")   == 0) strncpy(g.color, "#3b82f6", 31);
+                else if (strcmp(cv,"red")    == 0) strncpy(g.color, "#ef4444", 31);
+                else if (strcmp(cv,"green")  == 0) strncpy(g.color, "#22c55e", 31);
+                else if (strcmp(cv,"purple") == 0) strncpy(g.color, "#a855f7", 31);
+                else if (strcmp(cv,"orange") == 0) strncpy(g.color, "#f97316", 31);
+                else if (strcmp(cv,"pink")   == 0) strncpy(g.color, "#ec4899", 31);
+                else if (strcmp(cv,"yellow") == 0) strncpy(g.color, "#eab308", 31);
+                else if (strcmp(cv,"cyan")   == 0) strncpy(g.color, "#06b6d4", 31);
+                else strncpy(g.color, cv, 31); /* use as-is (hex) */
+            }
+            /* points are (x,y) (x,y) ... */
+            if (strcmp(ty0, "POINTS") == 0) {
+                /* scan raw line for (x,y) pairs */
+                char *raw = g_lines[i];
+                char *p   = raw;
+                while (*p && g.point_count < MAX_POINTS) {
+                    while (*p && *p != '(') p++;
+                    if (!*p) break;
+                    p++; /* skip ( */
+                    char xbuf[32]={0}, ybuf[32]={0};
+                    int j = 0;
+                    while (*p && *p != ',' && *p != ')' && j < 31)
+                        xbuf[j++] = *p++;
+                    if (*p == ',') p++;
+                    j = 0;
+                    while (*p && *p != ')' && j < 31)
+                        ybuf[j++] = *p++;
+                    if (*p == ')') p++;
+                    g.px[g.point_count] = atof(xbuf);
+                    g.py[g.point_count] = atof(ybuf);
+                    g.point_count++;
+                }
+            }
+        }
+
+        /* generate filename from title */
+        char fname[256] = {0};
+        int fi = 0;
+        for (int ci = 0; g.title[ci] && fi < 240; ci++) {
+            char c = g.title[ci];
+            if (c == ' ') fname[fi++] = '_';
+            else if ((c>='A'&&c<='Z')||(c>='a'&&c<='z')||(c>='0'&&c<='9'))
+                fname[fi++] = c;
+        }
+        if (fi == 0) { strcpy(fname, "graph"); fi = 5; }
+        strcpy(fname + fi, ".html");
+
+        /* build points JS array string */
+        char ptsbuf[4096] = {0};
+        {
+            int pos = 0;
+            pos += snprintf(ptsbuf+pos, sizeof(ptsbuf)-pos, "[");
+            for (int pi = 0; pi < g.point_count; pi++) {
+                pos += snprintf(ptsbuf+pos, sizeof(ptsbuf)-pos,
+                    "[%g,%g]%s", g.px[pi], g.py[pi],
+                    pi < g.point_count-1 ? "," : "");
+            }
+            snprintf(ptsbuf+pos, sizeof(ptsbuf)-pos, "]");
+        }
+
+        /* generate HTML */
+        FILE *hf = fopen(fname, "w");
+        if (!hf) {
+            nat_error(g_current_line,
+                "cannot create graph file — check write permissions",
+                "make sure NAT has permission to write in this folder");
+            return;
+        }
+
+        /* determine if smooth curve or straight lines */
+        int smooth = (strcmp(g.graph_type,"nonlinear")==0 ||
+                      strcmp(g.graph_type,"exponential")==0);
+        int is_bar = (strcmp(g.graph_type,"bar")==0);
+        int is_scatter = (strcmp(g.graph_type,"scatter")==0);
+
+        fprintf(hf,
+"<!DOCTYPE html>\n"
+"<html lang=\"en\">\n"
+"<head>\n"
+"<meta charset=\"UTF-8\">\n"
+"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
+"<title>%s</title>\n"
+"<style>\n"
+"* { margin:0; padding:0; box-sizing:border-box; }\n"
+"body { background:#0f172a; display:flex; flex-direction:column;\n"
+"       align-items:center; justify-content:center;\n"
+"       min-height:100vh; font-family:'Segoe UI',sans-serif; color:#e2e8f0; }\n"
+"h1 { font-size:1.6rem; margin-bottom:1rem; color:#f8fafc;\n"
+"     letter-spacing:0.05em; text-transform:uppercase; }\n"
+".badge { background:#1e293b; border:1px solid #334155;\n"
+"         padding:4px 12px; border-radius:999px; font-size:0.75rem;\n"
+"         color:#94a3b8; margin-bottom:1.5rem; }\n"
+"canvas { background:#1e293b; border-radius:12px;\n"
+"         border:1px solid #334155; display:block; }\n"
+"</style>\n"
+"</head>\n"
+"<body>\n"
+"<h1>%s</h1>\n"
+"<div class=\"badge\">%s graph &nbsp;|&nbsp; NAT v3.5</div>\n"
+"<canvas id=\"c\"></canvas>\n"
+"<script>\n"
+"const canvas = document.getElementById('c');\n"
+"const ctx    = canvas.getContext('2d');\n"
+"const PAD = 70;\n"
+"function resize() {\n"
+"  canvas.width  = Math.min(window.innerWidth  - 40, 900);\n"
+"  canvas.height = Math.min(window.innerHeight - 180, 600);\n"
+"  draw();\n"
+"}\n"
+"const pts    = %s;\n"
+"const xMin   = %g, xMax = %g, xStepUser = %g;\n"
+"const yMin   = %g, yMax = %g, yStepUser = %g;\n"
+"const color  = '%s';\n"
+"const xLabel = '%s';\n"
+"const yLabel = '%s';\n"
+"const isBar  = %s;\n"
+"const isScatter = %s;\n"
+"const smooth = %s;\n"
+"\n"
+"function toCanvasX(x) {\n"
+"  return PAD + (x - xMin) / (xMax - xMin) * (canvas.width  - PAD*2);\n"
+"}\n"
+"function toCanvasY(y) {\n"
+"  return canvas.height - PAD - (y - yMin) / (yMax - yMin) * (canvas.height - PAD*2);\n"
+"}\n"
+"\n"
+"function draw() {\n"
+"  const W = canvas.width, H = canvas.height;\n"
+"  ctx.clearRect(0,0,W,H);\n"
+"\n"
+"  /* step calculation — default 1 if not specified */\n"
+"  const xStep = xStepUser > 0 ? xStepUser : 1;\n"
+"  const yStep = yStepUser > 0 ? yStepUser : 1;\n"
+"\n"
+"  /* grid */\n"
+"  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;\n"
+"  for (let v = xMin; v <= xMax + xStep*0.01; v += xStep) {\n"
+"    const x = toCanvasX(v);\n"
+"    ctx.beginPath(); ctx.moveTo(x,PAD); ctx.lineTo(x,H-PAD); ctx.stroke();\n"
+"  }\n"
+"  for (let v = yMin; v <= yMax + yStep*0.01; v += yStep) {\n"
+"    const y = toCanvasY(v);\n"
+"    ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(W-PAD,y); ctx.stroke();\n"
+"  }\n"
+"\n"
+"  /* axes */\n"
+"  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;\n"
+"  ctx.beginPath(); ctx.moveTo(PAD,PAD); ctx.lineTo(PAD,H-PAD); ctx.stroke();\n"
+"  ctx.beginPath(); ctx.moveTo(PAD,H-PAD); ctx.lineTo(W-PAD,H-PAD); ctx.stroke();\n"
+"\n"
+"  /* axis labels */\n"
+"  ctx.fillStyle = '#94a3b8'; ctx.font = '13px Segoe UI';\n"
+"  ctx.textAlign = 'center';\n"
+"  for (let v = xMin; v <= xMax + xStep*0.01; v += xStep) {\n"
+"    const x = toCanvasX(v);\n"
+"    const disp = Number.isInteger(v) ? v : +v.toFixed(2);\n"
+"    ctx.fillText(disp, x, H-PAD+20);\n"
+"  }\n"
+"  ctx.textAlign = 'right';\n"
+"  for (let v = yMin; v <= yMax + yStep*0.01; v += yStep) {\n"
+"    const y = toCanvasY(v);\n"
+"    const disp = Number.isInteger(v) ? v : +v.toFixed(2);\n"
+"    ctx.fillText(disp, PAD-8, y+4);\n"
+"  }\n"
+"\n"
+"  /* axis names */\n"
+"  ctx.textAlign = 'center'; ctx.font = 'bold 14px Segoe UI';\n"
+"  ctx.fillStyle = '#cbd5e1';\n"
+"  ctx.fillText(xLabel, W/2, H-8);\n"
+"  ctx.save(); ctx.translate(14, H/2); ctx.rotate(-Math.PI/2);\n"
+"  ctx.fillText(yLabel, 0, 0); ctx.restore();\n"
+"\n"
+"  if (pts.length === 0) return;\n"
+"\n"
+"  if (isBar) {\n"
+"    const bw = (W-PAD*2) / (pts.length * 1.5);\n"
+"    pts.forEach(([x,y], i) => {\n"
+"      const cx = toCanvasX(x) - bw/2;\n"
+"      const cy = toCanvasY(y);\n"
+"      const bh = H - PAD - cy;\n"
+"      const grad = ctx.createLinearGradient(0,cy,0,H-PAD);\n"
+"      grad.addColorStop(0, color);\n"
+"      grad.addColorStop(1, color + '44');\n"
+"      ctx.fillStyle = grad;\n"
+"      ctx.beginPath();\n"
+"      ctx.roundRect(cx, cy, bw, bh, [4,4,0,0]);\n"
+"      ctx.fill();\n"
+"    });\n"
+"  } else {\n"
+"    /* fill under line */\n"
+"    ctx.beginPath();\n"
+"    ctx.moveTo(toCanvasX(pts[0][0]), H-PAD);\n"
+"    ctx.lineTo(toCanvasX(pts[0][0]), toCanvasY(pts[0][1]));\n"
+"    if (smooth && pts.length > 2) {\n"
+"      for (let i=1; i<pts.length; i++) {\n"
+"        const xc = (toCanvasX(pts[i-1][0]) + toCanvasX(pts[i][0])) / 2;\n"
+"        const yc = (toCanvasY(pts[i-1][1]) + toCanvasY(pts[i][1])) / 2;\n"
+"        ctx.quadraticCurveTo(toCanvasX(pts[i-1][0]), toCanvasY(pts[i-1][1]), xc, yc);\n"
+"      }\n"
+"      ctx.lineTo(toCanvasX(pts[pts.length-1][0]), toCanvasY(pts[pts.length-1][1]));\n"
+"    } else {\n"
+"      pts.slice(1).forEach(([x,y]) => ctx.lineTo(toCanvasX(x), toCanvasY(y)));\n"
+"    }\n"
+"    ctx.lineTo(toCanvasX(pts[pts.length-1][0]), H-PAD);\n"
+"    ctx.closePath();\n"
+"    const grad = ctx.createLinearGradient(0, PAD, 0, H-PAD);\n"
+"    grad.addColorStop(0, color + '44');\n"
+"    grad.addColorStop(1, color + '08');\n"
+"    if (!isScatter) { ctx.fillStyle = grad; ctx.fill(); }\n"
+"\n"
+"    /* line */\n"
+"    if (!isScatter) {\n"
+"      ctx.beginPath();\n"
+"      ctx.moveTo(toCanvasX(pts[0][0]), toCanvasY(pts[0][1]));\n"
+"      if (smooth && pts.length > 2) {\n"
+"        for (let i=1; i<pts.length; i++) {\n"
+"          const xc = (toCanvasX(pts[i-1][0]) + toCanvasX(pts[i][0])) / 2;\n"
+"          const yc = (toCanvasY(pts[i-1][1]) + toCanvasY(pts[i][1])) / 2;\n"
+"          ctx.quadraticCurveTo(toCanvasX(pts[i-1][0]), toCanvasY(pts[i-1][1]), xc, yc);\n"
+"        }\n"
+"        ctx.lineTo(toCanvasX(pts[pts.length-1][0]), toCanvasY(pts[pts.length-1][1]));\n"
+"      } else {\n"
+"        pts.slice(1).forEach(([x,y]) => ctx.lineTo(toCanvasX(x), toCanvasY(y)));\n"
+"      }\n"
+"      ctx.strokeStyle = color; ctx.lineWidth = 3;\n"
+"      ctx.lineJoin = 'round'; ctx.stroke();\n"
+"    }\n"
+"  }\n"
+"\n"
+"  /* dots */\n"
+"  pts.forEach(([x,y]) => {\n"
+"    ctx.beginPath();\n"
+"    ctx.arc(toCanvasX(x), toCanvasY(y), isScatter ? 6 : 5, 0, Math.PI*2);\n"
+"    ctx.fillStyle = color; ctx.fill();\n"
+"    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 2; ctx.stroke();\n"
+"  });\n"
+"\n"
+"  /* value labels on dots */\n"
+"  ctx.fillStyle = '#f8fafc'; ctx.font = '11px Segoe UI';\n"
+"  ctx.textAlign = 'center';\n"
+"  pts.forEach(([x,y]) => {\n"
+"    ctx.fillText('('+x+','+y+')', toCanvasX(x), toCanvasY(y)-12);\n"
+"  });\n"
+"}\n"
+"\n"
+"window.addEventListener('resize', resize);\n"
+"resize();\n"
+"</script>\n"
+"</body></html>\n",
+            /* substitutions */
+            g.title, g.title, g.graph_type,
+            ptsbuf,
+            g.x_min, g.x_max, g.x_step,
+            g.y_min, g.y_max, g.y_step,
+            g.color, g.x_label, g.y_label,
+            is_bar     ? "true" : "false",
+            is_scatter ? "true" : "false",
+            smooth     ? "true" : "false"
+        );
+
+        fclose(hf);
+        printf("Graph created: %s\n", fname);
+
+        /* auto-open in browser */
+#ifdef _WIN32
+        { char cmd[300]; snprintf(cmd,sizeof(cmd),"start %s",fname); system(cmd); }
+#elif __APPLE__
+        { char cmd[300]; snprintf(cmd,sizeof(cmd),"open %s",fname); system(cmd); }
+#else
+        { char cmd[300]; snprintf(cmd,sizeof(cmd),"xdg-open %s 2>/dev/null &",fname); system(cmd); }
+#endif
+        return;
+    }
+
+    case NODE_NEWLINE:
+        printf("\n");
         return;
     }
 }
@@ -664,6 +1150,9 @@ void execute_block(int start, int end) {
             execute(n); i = n->body_end; node_free(n); continue;
         }
         if (n->kind == NODE_IF) {
+            execute(n); i = n->loop_to; node_free(n); continue;
+        }
+        if (n->kind == NODE_GRAPH) {
             execute(n); i = n->loop_to; node_free(n); continue;
         }
 

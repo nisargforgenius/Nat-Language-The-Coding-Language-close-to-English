@@ -66,12 +66,27 @@ static int is_number(const char *s) {
     const char *p = s;
     if (*p == '-' || *p == '+') p++;
     if (!*p) return 0;
-    int dots = 0;
+    int dots = 0, has_digits = 0;
     for (; *p; p++) {
-        if (*p == '.') { if (++dots > 1) return 0; }
-        else if (!isdigit((unsigned char)*p)) return 0;
+        if (*p == '.') {
+            if (++dots > 1) return 0;
+        } else if (*p == 'e' || *p == 'E') {
+            /* scientific notation: must have seen digits before e */
+            if (!has_digits) return 0;
+            p++;
+            if (*p == '-' || *p == '+') p++;
+            if (!*p) return 0;
+            /* rest must be digits */
+            for (; *p; p++)
+                if (!isdigit((unsigned char)*p)) return 0;
+            return 1;
+        } else if (!isdigit((unsigned char)*p)) {
+            return 0;
+        } else {
+            has_digits = 1;
+        }
     }
-    return 1;
+    return has_digits;
 }
 
 static void fmt_num(char *out, int out_size, double v) {
@@ -134,7 +149,7 @@ static void call_function(const char *fname,
     g_has_return    = 0;
     g_return_val[0] = '\0';
 
-    execute_block(fn->body_start, fn->body_end);
+    execute_func_body(fn);
 
     strncpy(out, g_return_val, out_size-1);
 

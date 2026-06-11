@@ -86,11 +86,31 @@ static const KW keywords[] = {
     {"even",     "EVEN"    },
     {"odd",      "ODD"     },
     {"at",       "AT"      },
-    /* v3.4 p6 — each loop, clamp, online */
+    /* v3.5 — module system */
+    {"use",      "USE"     },
     {"each",     "EACH"    },
     {"clamp",    "CLAMP"   },
     {"online",   "ONLINE"  },
-    {"inline",   "ONLINE"  },
+    {"inline",   "ONLINE"  },   /* alias */
+    /* v3.5 p3 — create graph */
+    {"create",   "CREATE"  },
+    {"graph",    "GRAPH"   },
+    {"gap",      "GAP"     },
+    {"axis",     "AXIS"    },
+    {"range",    "RANGE"   },
+    {"points",   "POINTS"  },
+    {"type",     "TYPE"    },
+    {"color",    "COLOR"   },
+    {"linear",   "LINEAR"  },
+    {"nonlinear","NONLINEAR"},
+    {"exponential","EXPONENTIAL"},
+    {"uniform",  "UNIFORM" },
+    {"bar",      "BAR"     },
+    {"scatter",  "SCATTER" },
+    {"title",    "TITLE"   },
+    /* v3.5 p3 — newline/skip */
+    {"newline",  "NEWLINE" },
+    {"skip",     "NEWLINE" },   /* alias */
     {"random",   "RANDOM"  },
     {"equal",    "EQUAL"   },
     /* number wrapper */

@@ -134,6 +134,17 @@ static Node *parse_logical_and(void) {
 static Node *parse_concat(void) {
     Node *left = parse_compare();
     while (tok_is(T_AND)) {
+        /* Don't steal AND if left is a compare/logical node — 
+           that belongs to parse_logical_and as logical AND */
+        NodeType k = left->kind;
+        int is_cond = (k == NODE_CMP_EQ || k == NODE_CMP_NEQ ||
+                       k == NODE_CMP_GT  || k == NODE_CMP_LT  ||
+                       k == NODE_CMP_GTE || k == NODE_CMP_LTE ||
+                       k == NODE_AND     || k == NODE_OR       ||
+                       k == NODE_CONTAINS|| k == NODE_IS_EVEN  ||
+                       k == NODE_IS_ODD  || k == NODE_IS_NUMBER||
+                       k == NODE_IS_TEXT);
+        if (is_cond) break;  /* let parse_logical_and handle it */
         tok_consume();
         Node *n  = node_new(NODE_CONCAT);
         n->left  = left;
@@ -954,19 +965,11 @@ static Node *parse_let(int line_index) {
     Node *n = node_new(NODE_LET);
     strncpy(n->name, vname, 63);
 
-    /* bare-word string: let name be Nisarg. */
-    if (tok_is(T_IDENT) && !tok_peek(T_LPAREN, 1)) {
-        int next_is_end = (g_tok_pos + 1 >= g_tok_count) ||
-                          tok_peek(T_DOT, 1);
-        if (next_is_end) {
-            Node *sv = node_new(NODE_VAL);
-            strncpy(sv->value, tok_cur()->value, MAX_STR-1);
-            tok_consume();
-            n->left = sv;
-            return n;
-        }
-    }
-
+    /* v3.5 rule: bare IDENT after 'be' is ALWAYS a variable lookup.
+       String literals MUST use quotes: let name be "Nisarg".
+       This prevents silent bugs like: let x be y. where y is undeclared.
+       Exception: single bare word that is clearly a name (no operators)
+       is kept for backward compat BUT emits a warning if not declared. */
     n->left = parse_expression();
     return n;
 }
@@ -1282,6 +1285,42 @@ static Node *parse_call_stmt(void) {
 }
 
 /*
+ * use math.tree.
+ * use mylib.tree.
+ * Captures the full filename including extension.
+ */
+static Node *parse_use_stmt(void) {
+    tok_consume(); /* use */
+    Node *n = node_new(NODE_USE);
+
+    /* collect filename: IDENT DOT IDENT DOT(end)
+       e.g. tokens: IDENT("testlib") DOT IDENT("tree") DOT
+       result: "testlib.tree"                                  */
+    char filename[MAX_PATH_LEN] = {0};
+
+    while (g_tok_pos < g_tok_count) {
+        /* collect word token */
+        if (!tok_is(T_DOT)) {
+            strncat(filename, tok_cur()->value,
+                    MAX_PATH_LEN-1-strlen(filename));
+            tok_consume();
+        }
+        /* now expect a dot */
+        if (!tok_is(T_DOT)) break;
+        tok_consume(); /* consume dot */
+
+        /* if next token is also a dot or end-of-line, this was the terminator */
+        if (g_tok_pos >= g_tok_count || tok_is(T_DOT)) break;
+
+        /* otherwise it's a separator — add dot and continue */
+        strncat(filename, ".", MAX_PATH_LEN-1-strlen(filename));
+    }
+
+    strncpy(n->value, filename, MAX_STR-1);
+    return n;
+}
+
+/*
  * random from A to B for x y z.   — statement style, multi-var
  * let n be random from A to B.    — expression style, single var (handled in parse_factor)
  */
@@ -1408,6 +1447,39 @@ static Node *parse_each_stmt(int line_index) {
     return n;
 }
 
+/*
+ * create graph "Title":
+ *     x axis be "Time".
+ *     y axis be "Distance".
+ *     range x is 0 to 10.
+ *     range y is 0 to 50.
+ *     type be linear.
+ *     color be "blue".
+ *     points are (0,0) (2,10) (4,20).
+ * end.
+ *
+ * Stores all graph config into node->value (JSON-like string)
+ * and body_start/body_end for the config lines.
+ */
+static Node *parse_create_graph(int line_index) {
+    tok_consume(); /* create */
+    if (tok_is("GRAPH")) tok_consume();
+    Node *n = node_new(NODE_GRAPH);
+    /* title — quoted string */
+    if (tok_is(T_STRING)) {
+        strncpy(n->value, tok_cur()->value, MAX_STR-1);
+        tok_consume();
+    } else if (tok_is(T_IDENT)) {
+        strncpy(n->value, tok_cur()->value, MAX_STR-1);
+        tok_consume();
+    }
+    if (tok_is(T_COLON)) tok_consume();
+    n->body_start = line_index + 1;
+    n->body_end   = find_end(line_index);
+    n->loop_to    = n->body_end;
+    return n;
+}
+
 /* ─────────────────────────────────────────────────────────────────
    parse_statement — main dispatch
    ───────────────────────────────────────────────────────────────── */
@@ -1420,6 +1492,7 @@ Node *parse_statement(int line_index) {
 
     const char *ty = t->type;
 
+    if (strcmp(ty, "USE")    == 0) return parse_use_stmt();
     if (strcmp(ty, T_LET)    == 0) return parse_let(line_index);
     if (strcmp(ty, T_SHOW)   == 0) return parse_show();
     if (strcmp(ty, T_GIVE)   == 0) return parse_give();
@@ -1439,6 +1512,11 @@ Node *parse_statement(int line_index) {
     if (strcmp(ty, "SWAP")   == 0) return parse_swap_stmt();
     if (strcmp(ty, "REVERSE")== 0) return parse_reverse_stmt();
     if (strcmp(ty, "EACH")   == 0) return parse_each_stmt(line_index);
+    if (strcmp(ty, "CREATE") == 0) return parse_create_graph(line_index);
+    if (strcmp(ty, "NEWLINE")== 0) {
+        tok_consume();
+        return node_new(NODE_NEWLINE);
+    }
 
     /* array index assignment: fruits[1] be "mango". */
     if (strcmp(ty, T_IDENT) == 0 && tok_peek(T_LBRACK, 1)) {

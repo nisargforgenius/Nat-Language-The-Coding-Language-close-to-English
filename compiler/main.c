@@ -38,6 +38,11 @@ char     g_return_val[MAX_STR] = {0};
 int      g_has_return          = 0;
 int      g_current_line        = 0;
 
+/* v3.5 module system */
+char     g_imported[MAX_IMPORTS][MAX_PATH_LEN] = {{0}};
+int      g_import_count = 0;
+char     g_nat_exe_dir[MAX_PATH_LEN] = {0};
+
 /* ─────────────────────────────────────────────────────────────────
    strip_trailing — remove \r \n and trailing spaces
    ───────────────────────────────────────────────────────────────── */
@@ -52,7 +57,7 @@ static void strip_trailing(char *s) {
    pre_pass_fix — scan all lines for 'fix name value' declarations
    and register them in g_consts before execution starts.
    ───────────────────────────────────────────────────────────────── */
-static void pre_pass_fix(void) {
+void pre_pass_fix(void) {
     for (int i = 0; i < g_line_count; i++) {
         /* quick check: does the stripped line start with "fix "? */
         const char *p = g_lines[i];
@@ -117,6 +122,16 @@ int main(int argc, char *argv[]) {
     if (argc < 2) {
         print_usage(argv[0]);
         return 1;
+    }
+
+    /* extract directory from .nat file path for tree search */
+    strncpy(g_nat_exe_dir, argv[1], MAX_PATH_LEN-1);
+    char *last_sep = strrchr(g_nat_exe_dir, '/');
+    if (!last_sep) last_sep = strrchr(g_nat_exe_dir, '\\');
+    if (last_sep) {
+        *(last_sep + 1) = '\0';  /* keep trailing slash */
+    } else {
+        g_nat_exe_dir[0] = '\0'; /* same directory — no prefix needed */
     }
 
     FILE *fp = fopen(argv[1], "r");
