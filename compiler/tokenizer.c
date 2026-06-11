@@ -113,6 +113,16 @@ static const KW keywords[] = {
     {"skip",     "NEWLINE" },   /* alias */
     {"random",   "RANDOM"  },
     {"equal",    "EQUAL"   },
+    /* v3.6 — file I/O */
+    {"write",    "WRITE"   },
+    {"append",   "FAPPEND" },
+    {"read",     "FREAD"   },
+    {"delete",   "FDELETE" },
+    {"insert",   "FINSERT" },
+    {"line",     "LINE"    },
+    {"lines",    "LINES"   },
+    {"exists",   "EXISTS"  },
+    {"file",     "FILE_KW" },
     /* number wrapper */
     {"num",      T_NUM     },
     {"int",      T_NUM     },   /* legacy alias */

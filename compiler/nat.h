@@ -37,6 +37,7 @@
 #define MAX_PARAMS      16
 #define MAX_ARRAY_ELEM  256
 #define MAX_ASK_VARS    16
+#define MAX_INJECTS     64      /* v3.6 runtime injection slots */
 
 /* ─────────────────────────────────────────────
    TOKEN TYPE STRINGS
@@ -185,6 +186,18 @@ typedef enum {
     NODE_USE,           /* use math.tree. */
     NODE_GRAPH,         /* create graph "title": ... end. */
     NODE_NEWLINE,       /* newline. / skip. — blank line output */
+    /* v3.6 — file I/O */
+    NODE_FILE_WRITE,    /* write "text" to "file.txt". */
+    NODE_FILE_WRITE_LINE, /* write "text" to "file.txt" at line N. */
+    NODE_FILE_APPEND,   /* append "text" to "file.txt". */
+    NODE_FILE_INSERT,   /* insert "text" to "file.txt" at line N. */
+    NODE_FILE_READ,     /* read "file.txt". */
+    NODE_FILE_READ_LINE,/* let x be read "file.txt" at line N. */
+    NODE_FILE_DELETE,   /* delete file "file.txt". */
+    NODE_FILE_REMOVE_LINE, /* remove line N from "file.txt". */
+    NODE_FILE_EXISTS,   /* if file "file.txt" exists: */
+    NODE_FILE_EACH,     /* each line in file "file.txt": */
+    NODE_WRITE_INSIDE,  /* write x inside "one.nat". */
     NODE_NOOP
 } NodeType;
 
@@ -295,6 +308,11 @@ extern int      g_has_return;
 extern char     g_imported[MAX_IMPORTS][MAX_PATH_LEN]; /* already loaded trees */
 extern int      g_import_count;
 extern char     g_nat_exe_dir[MAX_PATH_LEN];           /* directory of nat executable */
+
+/* v3.6 — runtime injection table (write x inside "file.nat") */
+typedef struct { char name[64]; char value[MAX_STR]; } Inject;
+extern Inject   g_injects[MAX_INJECTS];
+extern int      g_inject_count;
 
 /* ─────────────────────────────────────────────
    API

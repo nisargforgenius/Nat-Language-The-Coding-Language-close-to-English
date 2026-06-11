@@ -28,6 +28,7 @@ static Node *parse_multiplicative(void);
 static Node *parse_power(void);
 static Node *parse_unary(void);
 static Node *parse_factor(void);
+static Node *parse_read_stmt(void);   /* v3.6 forward decl */
 
 /* ─────────────────────────────────────────────────────────────────
    NODE ALLOCATOR
@@ -723,11 +724,29 @@ static Node *parse_unary(void) {
         return n;
     }
 
+    /* read "file.txt" — as expression for let x be read "file.txt". */
+    if (tok_is("FREAD")) {
+        return parse_read_stmt();
+    }
+
     return parse_factor();
 }
 
 /* factor */
 static Node *parse_factor(void) {
+
+    /* file "x.txt" exists — boolean expression */
+    if (tok_is("FILE_KW")) {
+        tok_consume(); /* file */
+        Node *n = node_new(NODE_FILE_EXISTS);
+        if (tok_cur()) {
+            strncpy(n->name, tok_cur()->value, 63);
+            tok_consume(); /* filename */
+        }
+        if (tok_cur() && strcmp(tok_cur()->type, "EXISTS") == 0)
+            tok_consume(); /* exists */
+        return n;
+    }
 
     /* random from A to B — expression style: let n be random from 1 to 10. */
     if (tok_is("RANDOM")) {
@@ -1289,6 +1308,141 @@ static Node *parse_call_stmt(void) {
  * use mylib.tree.
  * Captures the full filename including extension.
  */
+
+/* ═══════════════════════════════════════════════════════════
+ *  v3.6 — File I/O parse helpers
+ * ═══════════════════════════════════════════════════════════ */
+
+/* write "text" to "file.txt".
+   write "text" to "file.txt" at line N.
+   write varname inside "file.nat".          ← runtime injection */
+static Node *parse_write_stmt(void) {
+    tok_consume(); /* write */
+    Node *n = node_new(NODE_FILE_WRITE);
+    n->left = parse_expression();   /* value to write */
+
+    Token *nxt = tok_cur();
+    if (!nxt) return n;
+
+    if (strcmp(nxt->type, T_INSIDE) == 0) {
+        /* write x inside "file.nat" */
+        tok_consume(); /* inside */
+        n->kind = NODE_WRITE_INSIDE;
+        if (tok_cur()) {
+            strncpy(n->name, tok_cur()->value, 63);
+            tok_consume(); /* filename */
+        }
+        return n;
+    }
+
+    /* write "text" to "file.txt" */
+    if (strcmp(nxt->type, T_TO) == 0) {
+        tok_consume(); /* to */
+        if (tok_cur()) {
+            strncpy(n->name, tok_cur()->value, 63);
+            tok_consume(); /* filename */
+        }
+        /* optional: at line N */
+        if (tok_cur() && strcmp(tok_cur()->type, "AT") == 0) {
+            tok_consume(); /* at */
+            if (tok_cur() && strcmp(tok_cur()->type, "LINE") == 0) {
+                tok_consume(); /* line */
+                n->right = parse_expression(); /* line number */
+                n->kind  = NODE_FILE_WRITE_LINE;
+            }
+        }
+    }
+    return n;
+}
+
+/* append "text" to "file.txt". */
+static Node *parse_append_stmt(void) {
+    tok_consume(); /* append */
+    Node *n  = node_new(NODE_FILE_APPEND);
+    n->left  = parse_expression(); /* value */
+    if (tok_cur() && strcmp(tok_cur()->type, T_TO) == 0) {
+        tok_consume(); /* to */
+        if (tok_cur()) {
+            strncpy(n->name, tok_cur()->value, 63);
+            tok_consume(); /* filename */
+        }
+    }
+    return n;
+}
+
+/* insert "text" to "file.txt" at line N. */
+static Node *parse_insert_stmt(void) {
+    tok_consume(); /* insert */
+    Node *n  = node_new(NODE_FILE_INSERT);
+    n->left  = parse_expression(); /* value */
+    if (tok_cur() && strcmp(tok_cur()->type, T_TO) == 0) {
+        tok_consume(); /* to */
+        if (tok_cur()) {
+            strncpy(n->name, tok_cur()->value, 63);
+            tok_consume(); /* filename */
+        }
+    }
+    if (tok_cur() && strcmp(tok_cur()->type, "AT") == 0) {
+        tok_consume(); /* at */
+        if (tok_cur() && strcmp(tok_cur()->type, "LINE") == 0) {
+            tok_consume(); /* line */
+            n->right = parse_expression(); /* line number */
+        }
+    }
+    return n;
+}
+
+/* remove line N from "file.txt". */
+static Node *parse_remove_line_stmt(void) {
+    /* called when REMOVE is followed by LINE token */
+    tok_consume(); /* remove */
+    tok_consume(); /* line   */
+    Node *n  = node_new(NODE_FILE_REMOVE_LINE);
+    n->right = parse_expression(); /* line number */
+    if (tok_cur() && strcmp(tok_cur()->type, T_FROM) == 0) {
+        tok_consume(); /* from */
+        if (tok_cur()) {
+            strncpy(n->name, tok_cur()->value, 63);
+            tok_consume(); /* filename */
+        }
+    }
+    return n;
+}
+
+/* read "file.txt".
+   used in expression too: read "file.txt" at line N / as array */
+static Node *parse_read_stmt(void) {
+    tok_consume(); /* read */
+    Node *n = node_new(NODE_FILE_READ);
+    if (tok_cur()) {
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume(); /* filename */
+    }
+    /* at line N */
+    if (tok_cur() && strcmp(tok_cur()->type, "AT") == 0) {
+        tok_consume(); /* at */
+        if (tok_cur() && strcmp(tok_cur()->type, "LINE") == 0) {
+            tok_consume(); /* line */
+            n->right = parse_expression();
+            n->kind  = NODE_FILE_READ_LINE;
+        }
+    }
+    return n;
+}
+
+/* delete file "file.txt". */
+static Node *parse_delete_file_stmt(void) {
+    tok_consume(); /* delete */
+    if (tok_cur() && strcmp(tok_cur()->type, "FILE_KW") == 0)
+        tok_consume(); /* file */
+    Node *n = node_new(NODE_FILE_DELETE);
+    if (tok_cur()) {
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume(); /* filename */
+    }
+    return n;
+}
+
 static Node *parse_use_stmt(void) {
     tok_consume(); /* use */
     Node *n = node_new(NODE_USE);
@@ -1438,8 +1592,20 @@ static Node *parse_each_stmt(int line_index) {
     n->param_count = 1;
     tok_consume();
     if (tok_is(T_IN)) tok_consume();
-    /* source */
-    n->left = parse_factor();
+
+    /* each line in file "x.txt": — FILE_EACH variant */
+    if (tok_cur() && strcmp(tok_cur()->type, "FILE_KW") == 0) {
+        tok_consume(); /* file */
+        n->kind = NODE_FILE_EACH;
+        if (tok_cur()) {
+            strncpy(n->name, tok_cur()->value, 63);
+            tok_consume(); /* filename */
+        }
+    } else {
+        /* source — normal array/string */
+        n->left = parse_factor();
+    }
+
     if (tok_is(T_COLON)) tok_consume();
     n->body_start = line_index + 1;
     n->body_end   = find_end(line_index);
@@ -1493,6 +1659,16 @@ Node *parse_statement(int line_index) {
     const char *ty = t->type;
 
     if (strcmp(ty, "USE")    == 0) return parse_use_stmt();
+    if (strcmp(ty, "WRITE")  == 0) return parse_write_stmt();
+    if (strcmp(ty, "FAPPEND")== 0) return parse_append_stmt();
+    if (strcmp(ty, "FINSERT")== 0) return parse_insert_stmt();
+    if (strcmp(ty, "FREAD")  == 0) return parse_read_stmt();
+    if (strcmp(ty, "FDELETE")== 0) return parse_delete_file_stmt();
+    /* remove line N from "x" vs remove item from array — check next token */
+    if (strcmp(ty, "REMOVE") == 0 &&
+        g_tok_pos + 1 < g_tok_count &&
+        strcmp(g_tokens[g_tok_pos+1].type, "LINE") == 0)
+        return parse_remove_line_stmt();
     if (strcmp(ty, T_LET)    == 0) return parse_let(line_index);
     if (strcmp(ty, T_SHOW)   == 0) return parse_show();
     if (strcmp(ty, T_GIVE)   == 0) return parse_give();
@@ -1535,12 +1711,13 @@ Node *parse_statement(int line_index) {
         return n;
     }
 
-    /* bare assignment: x be 10. */
-    if (strcmp(ty, T_IDENT) == 0 && tok_peek(T_BE, 1)) {
+    /* bare assignment: x be 10.  OR  x = 10. */
+    if (strcmp(ty, T_IDENT) == 0 &&
+        (tok_peek(T_BE, 1) || tok_peek("ASSIGN", 1))) {
         Node *n = node_new(NODE_ASSIGN);
         strncpy(n->name, t->value, 63);
-        tok_consume(); /* name */
-        tok_consume(); /* be   */
+        tok_consume(); /* name     */
+        tok_consume(); /* be or =  */
         n->left = parse_expression();
         return n;
     }
@@ -1558,9 +1735,10 @@ Node *parse_statement(int line_index) {
                unknown bare word with args: also parse for runtime error */
             if (is_known_func || tok_peek(T_LPAREN, 1) ||
                 (g_tok_pos + 1 < g_tok_count &&
-                 !tok_peek(T_DOT,   1) &&
-                 !tok_peek(T_COLON, 1) &&
-                 !tok_peek(T_BE,    1)))
+                 !tok_peek(T_DOT,    1) &&
+                 !tok_peek(T_COLON,  1) &&
+                 !tok_peek(T_BE,     1) &&
+                 !tok_peek("ASSIGN", 1)))
                 return parse_call_stmt();
         }
     }

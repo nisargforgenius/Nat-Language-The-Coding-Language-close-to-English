@@ -411,3 +411,34 @@ static inline void err_bad_conversion(int line, const char *from, const char *to
         "check convert.tree for valid conversions");
     nat_error(line, what, hint);
 }
+
+/* ═══════════════════════════════════════
+   v3.6 — File I/O errors
+   ═══════════════════════════════════════ */
+
+static inline void err_file_not_found(int line, const char *fname) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "file '%s' not found, %s!", fname, nat_personality());
+    snprintf(hint, sizeof(hint),
+        "check the filename and path — does it exist?");
+    nat_error(line, what, hint);
+}
+
+static inline void err_file_open(int line, const char *fname) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "could not open '%s' for writing, %s!", fname, nat_personality());
+    snprintf(hint, sizeof(hint),
+        "check file permissions or if it is open in another program");
+    nat_error(line, what, hint);
+}
+
+static inline void err_line_range(int line, const char *fname, int target) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "line %d is out of range in '%s', %s!", target, fname, nat_personality());
+    snprintf(hint, sizeof(hint),
+        "use  read \"%s\".  first to see how many lines it has", fname);
+    nat_error(line, what, hint);
+}

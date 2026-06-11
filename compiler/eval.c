@@ -735,6 +735,37 @@ void eval(Node *n, char *out, int out_size) {
         call_function(n->name, n->args, n->arg_count, out, out_size);
         return;
 
+    /* ── read "file.txt" at line N — expression ── */
+    case NODE_FILE_READ_LINE: {
+        char lnum[64] = {0};
+        if (n->right) eval(n->right, lnum, 64);
+        int target = atoi(lnum);
+        FILE *fp = fopen(n->name, "r");
+        if (!fp) { err_file_not_found(g_current_line, n->name); return; }
+        char buf[MAX_STR]; int ln = 1;
+        while (fgets(buf, MAX_STR, fp)) {
+            if (ln == target) {
+                int bl = strlen(buf);
+                if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
+                strncpy(out, buf, out_size-1);
+                fclose(fp);
+                return;
+            }
+            ln++;
+        }
+        fclose(fp);
+        err_line_range(g_current_line, n->name, target);
+        return;
+    }
+
+    /* ── file "x.txt" exists — boolean ── */
+    case NODE_FILE_EXISTS: {
+        FILE *fp = fopen(n->name, "r");
+        if (fp) { fclose(fp); strncpy(out, "1", out_size-1); }
+        else    { strncpy(out, "0", out_size-1); }
+        return;
+    }
+
     case NODE_NOOP:
     default:
         return;

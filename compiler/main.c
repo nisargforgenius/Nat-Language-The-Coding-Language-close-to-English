@@ -43,6 +43,10 @@ char     g_imported[MAX_IMPORTS][MAX_PATH_LEN] = {{0}};
 int      g_import_count = 0;
 char     g_nat_exe_dir[MAX_PATH_LEN] = {0};
 
+/* v3.6 — runtime injection table */
+Inject   g_injects[MAX_INJECTS] = {{{0}}};
+int      g_inject_count = 0;
+
 /* ─────────────────────────────────────────────────────────────────
    strip_trailing — remove \r \n and trailing spaces
    ───────────────────────────────────────────────────────────────── */
@@ -151,6 +155,10 @@ int main(int argc, char *argv[]) {
 
     /* pre-pass: register all 'fix' constants before execution */
     pre_pass_fix();
+
+    /* v3.6 — apply injected variables before execution */
+    for (int i = 0; i < g_inject_count; i++)
+        set_var(g_injects[i].name, g_injects[i].value);
 
     /* execute */
     execute_block(0, g_line_count - 1);

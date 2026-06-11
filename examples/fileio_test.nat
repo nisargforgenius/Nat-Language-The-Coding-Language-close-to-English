@@ -1,0 +1,51 @@
+// === v3.6 File I/O — clean test ===
+
+// 1. write + at-line
+write "Hello NAT" to "test.txt".
+write "Line two" to "test.txt" at line 2.
+write "Line three" to "test.txt" at line 3.
+show "--- read whole file ---".
+read "test.txt".
+
+// 2. read specific line
+let line2 be read "test.txt" at line 2.
+show "Line 2 is: " and line2.
+
+// 3. append
+append "Appended line" to "test.txt".
+show "--- after append ---".
+read "test.txt".
+
+// 4. insert at line 2
+insert "INSERTED" to "test.txt" at line 2.
+show "--- after insert ---".
+read "test.txt".
+
+// 5. remove line 3
+remove line 3 from "test.txt".
+show "--- after remove line 3 ---".
+read "test.txt".
+
+// 6. exists check
+if file "test.txt" exists:
+    show "file exists: yes".
+end.
+if file "ghost.txt" exists:
+    show "ERROR: ghost file found".
+else:
+    show "ghost.txt missing: correct".
+end.
+
+// 7. each line in file
+show "--- each line loop ---".
+each ln in file "test.txt":
+    show ln.
+end.
+
+// 8. delete
+delete file "test.txt".
+if file "test.txt" exists:
+    show "ERROR: should be deleted".
+else:
+    show "deleted: confirmed".
+end.

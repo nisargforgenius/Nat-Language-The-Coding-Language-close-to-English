@@ -1,0 +1,104 @@
+# errors_test.nat — NAT v3.3 Error Experience Test
+# Each block intentionally has a broken piece to trigger a specific error.
+# Half-written code on purpose — this is the official error test file.
+
+# ── TEST 1: Unknown variable (typo) ──────────────────────────────
+# 'scroe' instead of 'score'
+let score be num(95).
+show scroe.
+
+# ── TEST 2: Unknown function (typo) ──────────────────────────────
+# 'shwo' instead of 'show', called as a function
+make greet with person inside:
+    show "Hello " and person.
+end.
+greet "Nisarg".
+greet "NAT".
+greett "oops".
+
+# ── TEST 3: Wrong argument count ─────────────────────────────────
+make area with length width inside:
+    give length * width.
+end.
+show area(5, 10).
+show area(5).
+
+# ── TEST 4: Division by zero ──────────────────────────────────────
+let x be num(10).
+let y be num(0).
+show x / y.
+
+# ── TEST 5: Array index out of range ─────────────────────────────
+let fruits are apple banana cherry.
+show fruits[0].
+show fruits[5].
+
+# ── TEST 6: Accessing non-array with index ────────────────────────
+let name be "Nisarg".
+show name[2].
+
+# ── TEST 7: Unknown variable — no close match (no suggestion) ─────
+show totallyunknownxyz.
+
+# ── TEST 8: Infinite loop guard ───────────────────────────────────
+let counter be num(1).
+while counter > 0:
+    let counter be counter + 1.
+end.
+
+# ── TEST 9: Valid code to confirm errors don't break good code ────
+let a, b, c.
+a be num(3).
+b be num(4).
+c be a + b.
+show "Sum is " and c.
+show upper of "nat language".
+show 2^10.
+show abs of num(-99).
+
+# ── TEST 9b: Missing colon after if ──────────────────────────────
+let z be num(3).
+if z > 1
+    show "missing colon".
+end.
+
+# ── TEST 9c: Unclosed block ───────────────────────────────────────
+if z > 1:
+    show "unclosed block".
+
+# ── TEST 9d: Missing inside in make ──────────────────────────────
+make saybye with person
+    show "bye " and person.
+end.
+
+# ── TEST 10: Negative array index ────────────────────────────────
+let colors are red green blue.
+show colors[-1].
+
+# ── TEST 11: Step zero ────────────────────────────────────────────
+repeat i from 1 to 5 step 0:
+    show i.
+end.
+
+# ── TEST 12: Constant reassignment ───────────────────────────────
+fix MAXSCORE 100.
+let MAXSCORE be 999.
+
+# ── TEST 13: Math on text ─────────────────────────────────────────
+let word be "hello".
+let bad be word * 2.
+
+# ── TEST 14: Repeat negative count ───────────────────────────────
+repeat -3 times:
+    show "oops".
+end.
+
+# ── TEST 15: Array in math ────────────────────────────────────────
+let vals are 1 2 3.
+let broken be vals + 10.
+
+# ── TEST 16: Call before define works (pre-scan) ──────────────────
+sayhi "NAT".
+make sayhi with who inside:
+    show "Hey " and who.
+end.

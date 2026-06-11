@@ -342,9 +342,15 @@ void execute(Node *n) {
         g_has_return    = 0;
         g_return_val[0] = '\0';
         execute_func_body(fn);
+        /* auto-print return value when called as a bare statement */
+        char stmt_rv[MAX_STR];
+        strncpy(stmt_rv, g_return_val, MAX_STR-1);
+        int  stmt_had_return = g_has_return;
         g_var_count  = saved_vc;
         g_has_return = saved_ret;
         strncpy(g_return_val, saved_rv, MAX_STR-1);
+        if (stmt_had_return && stmt_rv[0] != '\0')
+            printf("%s\n", stmt_rv);
         return;
     }
 
@@ -1080,8 +1086,204 @@ void execute(Node *n) {
     case NODE_NEWLINE:
         printf("\n");
         return;
+
+    /* ═══════════════════════════════════════════════════════════
+     *  v3.6 — File I/O execution
+     * ═══════════════════════════════════════════════════════════ */
+
+    /* ── write "text" to "file.txt". ── */
+    case NODE_FILE_WRITE: {
+        char val[MAX_STR] = {0};
+        if (n->left) eval(n->left, val, MAX_STR);
+        FILE *fp = fopen(n->name, "w");
+        if (!fp) {
+            err_file_open(g_current_line, n->name);
+            return;
+        }
+        fprintf(fp, "%s\n", val);
+        fclose(fp);
+        return;
     }
-}
+
+    /* ── write "text" to "file.txt" at line N. ── */
+    case NODE_FILE_WRITE_LINE: {
+        char val[MAX_STR] = {0};
+        char lnum[64]     = {0};
+        if (n->left)  eval(n->left,  val,  MAX_STR);
+        if (n->right) eval(n->right, lnum, 64);
+        int target = atoi(lnum);
+        if (target < 1) { err_line_range(g_current_line, n->name, target); return; }
+
+        /* read all lines */
+        FILE *fp = fopen(n->name, "r");
+        char *lines[4096]; int lc = 0;
+        char buf[MAX_STR];
+        if (fp) {
+            while (fgets(buf, MAX_STR, fp) && lc < 4096) {
+                int bl = strlen(buf);
+                if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
+                lines[lc++] = strdup(buf);
+            }
+            fclose(fp);
+        }
+        /* expand if needed */
+        while (lc < target) lines[lc++] = strdup("");
+        free(lines[target-1]);
+        lines[target-1] = strdup(val);
+        /* write back */
+        fp = fopen(n->name, "w");
+        if (!fp) { err_file_open(g_current_line, n->name); goto file_write_line_cleanup; }
+        for (int i = 0; i < lc; i++) fprintf(fp, "%s\n", lines[i]);
+        fclose(fp);
+        file_write_line_cleanup:
+        for (int i = 0; i < lc; i++) free(lines[i]);
+        return;
+    }
+
+    /* ── append "text" to "file.txt". ── */
+    case NODE_FILE_APPEND: {
+        char val[MAX_STR] = {0};
+        if (n->left) eval(n->left, val, MAX_STR);
+        FILE *fp = fopen(n->name, "a");
+        if (!fp) { err_file_open(g_current_line, n->name); return; }
+        fprintf(fp, "%s\n", val);
+        fclose(fp);
+        return;
+    }
+
+    /* ── insert "text" to "file.txt" at line N. ── */
+    case NODE_FILE_INSERT: {
+        char val[MAX_STR] = {0};
+        char lnum[64]     = {0};
+        if (n->left)  eval(n->left,  val,  MAX_STR);
+        if (n->right) eval(n->right, lnum, 64);
+        int target = atoi(lnum);
+        if (target < 1) { err_line_range(g_current_line, n->name, target); return; }
+
+        FILE *fp = fopen(n->name, "r");
+        char *lines[4096]; int lc = 0;
+        char buf[MAX_STR];
+        if (fp) {
+            while (fgets(buf, MAX_STR, fp) && lc < 4095) {
+                int bl = strlen(buf);
+                if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
+                lines[lc++] = strdup(buf);
+            }
+            fclose(fp);
+        }
+        /* shift lines from target down */
+        if (lc < 4095) {
+            for (int i = lc; i >= target; i--) lines[i] = lines[i-1];
+            lines[target-1] = strdup(val);
+            lc++;
+        }
+        fp = fopen(n->name, "w");
+        if (!fp) { err_file_open(g_current_line, n->name); goto file_insert_cleanup; }
+        for (int i = 0; i < lc; i++) fprintf(fp, "%s\n", lines[i]);
+        fclose(fp);
+        file_insert_cleanup:
+        for (int i = 0; i < lc; i++) free(lines[i]);
+        return;
+    }
+
+    /* ── remove line N from "file.txt". ── */
+    case NODE_FILE_REMOVE_LINE: {
+        char lnum[64] = {0};
+        if (n->right) eval(n->right, lnum, 64);
+        int target = atoi(lnum);
+        if (target < 1) { err_line_range(g_current_line, n->name, target); return; }
+
+        FILE *fp = fopen(n->name, "r");
+        if (!fp) { err_file_not_found(g_current_line, n->name); return; }
+        char *lines[4096]; int lc = 0;
+        char buf[MAX_STR];
+        while (fgets(buf, MAX_STR, fp) && lc < 4096) {
+            int bl = strlen(buf);
+            if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
+            lines[lc++] = strdup(buf);
+        }
+        fclose(fp);
+        if (target > lc) { err_line_range(g_current_line, n->name, target); goto file_remove_cleanup; }
+        free(lines[target-1]);
+        for (int i = target-1; i < lc-1; i++) lines[i] = lines[i+1];
+        lc--;
+        fp = fopen(n->name, "w");
+        if (!fp) { err_file_open(g_current_line, n->name); goto file_remove_cleanup; }
+        for (int i = 0; i < lc; i++) fprintf(fp, "%s\n", lines[i]);
+        fclose(fp);
+        file_remove_cleanup:
+        for (int i = 0; i < lc; i++) free(lines[i]);
+        return;
+    }
+
+    /* ── read "file.txt". — prints with line numbers ── */
+    case NODE_FILE_READ: {
+        FILE *fp = fopen(n->name, "r");
+        if (!fp) { err_file_not_found(g_current_line, n->name); return; }
+        char buf[MAX_STR]; int ln = 1;
+        while (fgets(buf, MAX_STR, fp)) {
+            int bl = strlen(buf);
+            if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
+            printf("line %d | %s\n", ln++, buf);
+        }
+        fclose(fp);
+        return;
+    }
+
+    /* ── delete file "file.txt". ── */
+    case NODE_FILE_DELETE: {
+        if (remove(n->name) != 0)
+            err_file_not_found(g_current_line, n->name);
+        return;
+    }
+
+    /* ── write x inside "one.nat". — runtime injection ── */
+    case NODE_WRITE_INSIDE: {
+        char val[MAX_STR] = {0};
+        if (n->left) eval(n->left, val, MAX_STR);
+        /* store in injection table: varname -> value */
+        /* n->params[0] holds the var name (set during parse via n->left->name) */
+        char varname[64] = {0};
+        if (n->left && n->left->kind == NODE_VAR)
+            strncpy(varname, n->left->name, 63);
+        else
+            strncpy(varname, "__injected__", 63);
+        /* find or create injection slot */
+        for (int i = 0; i < g_inject_count; i++) {
+            if (strcmp(g_injects[i].name, varname) == 0) {
+                strncpy(g_injects[i].value, val, MAX_STR-1);
+                return;
+            }
+        }
+        if (g_inject_count < MAX_INJECTS) {
+            strncpy(g_injects[g_inject_count].name,  varname, 63);
+            strncpy(g_injects[g_inject_count].value, val,     MAX_STR-1);
+            g_inject_count++;
+        }
+        return;
+    }
+
+    /* ── each line in file "x.txt": ── */
+    case NODE_FILE_EACH: {
+        FILE *fp = fopen(n->name, "r");
+        if (!fp) { err_file_not_found(g_current_line, n->name); return; }
+        char buf[MAX_STR];
+        while (fgets(buf, MAX_STR, fp)) {
+            int bl = strlen(buf);
+            if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
+            /* skip empty trailing line from final newline in file */
+            if (buf[0] == '\0' && feof(fp)) break;
+            /* set loop variable */
+            set_var(n->params[0], buf);
+            execute_block(n->body_start, n->body_end);
+            if (g_has_return) break;
+        }
+        fclose(fp);
+        return;
+    }
+    } /* end switch */
+}  /* end execute() */
+
 /* ─────────────────────────────────────────────────────────────────
    execute_block
    ───────────────────────────────────────────────────────────────── */
@@ -1146,7 +1348,8 @@ void execute_block(int start, int end) {
         if (n->kind == NODE_FOR_LOOP ||
             n->kind == NODE_LOOP     ||
             n->kind == NODE_WHILE    ||
-            n->kind == NODE_EACH) {
+            n->kind == NODE_EACH     ||
+            n->kind == NODE_FILE_EACH) {
             execute(n); i = n->body_end; node_free(n); continue;
         }
         if (n->kind == NODE_IF) {
