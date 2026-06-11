@@ -1,6 +1,6 @@
 # NAT Language v3.0
 
-A simple, English-style interpreted programming language written in pure C.
+A simple, English-style compiled programming language written in pure C.
 Designed to read like natural English — no symbols where words will do.
 
 ---
@@ -25,82 +25,62 @@ gcc *.c -o nat.exe
 
 ---
 
-## What Changed in v3.0
-
-| Old (v2)             | New (v3)                     | Notes                        |
-|----------------------|------------------------------|------------------------------|
-| `let x = int(5).`    | `let x be num(5).`           | `be` replaces `=`            |
-| `int()` / `float()`  | `num()`                      | One type for all numbers     |
-| `let name = string(Nisarg).` | `let name be Nisarg.` | Bare word = string     |
-| *(not available)*    | `fix PI 3.14`                | Constants, no dot needed     |
-| *(not available)*    | `add x with y to z.`         | English arithmetic assignment|
-| `repeat i from 1 to 5` → prints 1–4 | `repeat i from 1 to 5` → prints 1–5 | Now **inclusive** |
-
-Old syntax (`= int() float() string()`) still works for backwards compatibility.
-
----
-
 ## Language Reference
 
 ### Variables
 ```nat
-let x    be num(42).
-let pi   be num(3.14).
-let name be Nisarg.
-let msg  be "Hello World".
+let x be 42.
+let pi be 3.14.
+let name be "Nisarg".
+let msg be "Hello World".
 ```
 
-### Constants  (`fix` — immutable, no dot needed)
+### Constants — `fix` (immutable)
 ```nat
-fix MAX 100
-fix PI 3.14159
-fix GREETING Hello
+fix MAX be 100.
+fix PI be 3.14159.
+fix GREETING be "Hello".
 ```
+
 Constants can be used anywhere a value is expected:
 ```nat
-show(PI).
-show(PI * r * r).
-repeat i from 1 to MAX step 1:
+show PI.
+repeat i from 1 to MAX:
+    show i.
+end.
 ```
 
 ### Show (print)
 ```nat
-show(x).
-show("Hello " and name and "!").
-show(x + y).
-show(PI * r * r).
+show x.
+show "Hello " and name and "!".
+show x + y.
+show PI * r * r.
 ```
 
-### Math  `+ - * / %`
+### Math — `+ - * / % ^`
 ```nat
-show(10 + 3).     # 13
-show(10 - 3).     # 7
-show(10 * 3).     # 30
-show(10 / 4).     # 2.5
-show(10 % 3).     # 1
-show((x + y) * 2).
+show 10 + 3.
+show 10 - 3.
+show 10 * 3.
+show 10 / 4.
+show 10 % 3.
+show 2 ^ 8.
+show (x + y) * 2.
 ```
 
-### String concatenation  `and`
+### String concatenation — `and`
 ```nat
-show("Hello " and name and "!").
-show("Result: " and x + y).
+show "Hello " and name and "!".
+show "Result: " and x + y.
 ```
-
-### add … with … to …
-English-style arithmetic assignment — add two values and store result:
-```nat
-add x with y to total.
-add 100 with 200 to sum.
-add name with "!" to name.
-```
-Equivalent to `total = x + y` in other languages.
 
 ### Functions
 ```nat
 make greet with name inside:
-    show("Hello " and name).
+    show "Hello " and name.
 end.
+
 greet("World").
 ```
 
@@ -109,7 +89,8 @@ Return a value with `give`:
 make square with n inside:
     give n * n.
 end.
-show(square(7)).
+
+show square(7).
 ```
 
 Multiple parameters:
@@ -117,7 +98,8 @@ Multiple parameters:
 make add with a b inside:
     give a + b.
 end.
-show(add(5, 10)).
+
+show add(5, 10).
 ```
 
 Recursive functions work:
@@ -128,55 +110,56 @@ make fib with n inside:
     end.
     give fib(n - 1) + fib(n - 2).
 end.
-show(fib(10)).
+
+show fib(10).
 ```
 
-### For loop  (INCLUSIVE — `from 1 to 5` prints 1 2 3 4 5)
+### For loop — inclusive (`from 1 to 5` prints 1 2 3 4 5)
 ```nat
-repeat i from 1 to 5 step 1:
-    show(i).
+repeat i from 1 to 5:
+    show i.
 end.
 
-# Step 2:
+// Step 2:
 repeat i from 0 to 10 step 2:
-    show(i).
+    show i.
 end.
 
-# Variable bounds:
-fix START 1
-fix END 10
-repeat i from START to END step 1:
-    show(i).
+// Variable bounds:
+fix START be 1.
+fix END be 10.
+repeat i from START to END:
+    show i.
 end.
 ```
 
 ### Repeat N times
 ```nat
 repeat 5 times:
-    show("Hi").
+    show "Hi".
 end.
 
-let n be num(3).
+let n be 3.
 repeat n times:
-    show("loop").
+    show "loop".
 end.
 ```
 
 ### While loop
 ```nat
-let i be num(0).
+let i be 0.
 while i < 10:
-    show(i).
-    let i be i + 1.
+    show i.
+    i be i + 1.
 end.
 ```
 
 ### If / Else
 ```nat
 if x > 5:
-    show("big").
+    show "big".
 else:
-    show("small").
+    show "small".
 end.
 ```
 
@@ -184,40 +167,48 @@ Operators: `==  !=  >  <  >=  <=`
 
 English comparisons:
 ```nat
-if x is greater than 5:  show("big").  end.
-if x is less than 10:    show("ok").   end.
-if x is not 0:           show("yes").  end.
+if x is greater than 5:
+    show "big".
+end.
+
+if x is less than 10:
+    show "ok".
+end.
+
+if x is not 0:
+    show "yes".
+end.
 ```
 
 Logical NOT:
 ```nat
 if not x == 0:
-    show("x is non-zero").
+    show "x is non-zero".
 end.
 ```
 
 ### Arrays
 ```nat
 let nums are 10 20 30 40 50.
-show(nums[0]).
-show(nums[4]).
+show nums[0].
+show nums[4].
 ```
 
 ### Input
 ```nat
-show("What is your name?").
+show "What is your name?".
 ask for name.
-show("Hello " and name).
+show "Hello " and name.
 
-show("Enter two numbers:").
+show "Enter two numbers:".
 ask for a b.
-add a with b to total.
-show(total).
+let total be a + b.
+show total.
 ```
 
 ### Comments
 ```nat
-# This is a comment
+// This is a comment
 ```
 
 ---
@@ -225,18 +216,18 @@ show(total).
 ## Complete Example
 
 ```nat
-fix MAX 10
+fix MAX be 10.
 
 make power with base exp inside:
-    let result be num(1).
-    repeat i from 1 to exp step 1:
-        let result be result * base.
+    let result be 1.
+    repeat i from 1 to exp:
+        result be result * base.
     end.
     give result.
 end.
 
-repeat i from 1 to MAX step 1:
-    show(power(2, i)).
+repeat i from 1 to MAX:
+    show power(2, i).
 end.
 ```
 
@@ -244,13 +235,13 @@ end.
 
 ## File Structure
 
-| File           | Role                                      |
-|----------------|-------------------------------------------|
-| `nat.h`        | Types, constants, global state externs    |
-| `tokenizer.c`  | Source text → flat token array            |
-| `parser.c`     | Tokens → AST (recursive descent)          |
-| `eval.c`       | Evaluate expression nodes → value         |
-| `exec.c`       | Execute statement nodes, manage scope     |
-| `main.c`       | Entry point, `fix` pre-pass, global state |
-| `hello.nat`    | Full feature showcase                     |
-| `examples.nat` | Fibonacci, factorial, power, more         |
+| File | Role |
+|------|------|
+| `nat.h` | Types, constants, global state externs |
+| `tokenizer.c` | Source text → flat token array |
+| `parser.c` | Tokens → AST (recursive descent) |
+| `eval.c` | Evaluate expression nodes → value |
+| `exec.c` | Execute statement nodes, manage scope |
+| `main.c` | Entry point, `fix` pre-pass, global state |
+| `hello.nat` | Full feature showcase |
+| `examples.nat` | Fibonacci, factorial, power and more |
