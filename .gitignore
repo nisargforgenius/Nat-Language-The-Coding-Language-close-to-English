@@ -1,0 +1,24 @@
+# Compiled binary
+nat.exe
+nat
+*.exe
+
+# Test output files
+*.txt
+!README.txt
+
+# VS Code
+.vscode/
+
+# Build artifacts
+*.o
+*.obj
+
+# Temporary / test files
+test_*.nat
+*_debug.nat
+*_test.nat
+!errors_test.nat
+!fileio_test.nat
+!graph_test.nat
+!import_test.nat

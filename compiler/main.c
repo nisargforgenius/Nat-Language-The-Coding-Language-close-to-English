@@ -153,6 +153,28 @@ int main(int argc, char *argv[]) {
     }
     fclose(fp);
 
+    /* strip multi-line block comments, blank out lines inside them */
+    {
+        int in_block = 0;
+        for (int i = 0; i < g_line_count; i++) {
+            char *p = g_lines[i];
+            char  out[MAX_LINE_LEN]; int oi = 0;
+            int   j = 0, ln = (int)strlen(p);
+            while (j < ln) {
+                if (!in_block && p[j]=='/' && j+1<ln && p[j+1]=='*') {
+                    in_block = 1; j += 2; continue;
+                }
+                if (in_block && p[j]=='*' && j+1<ln && p[j+1]=='/') {
+                    in_block = 0; j += 2; continue;
+                }
+                if (!in_block) out[oi++] = p[j];
+                j++;
+            }
+            out[oi] = '\0';
+            strncpy(g_lines[i], out, MAX_LINE_LEN-1);
+        }
+    }
+
     /* pre-pass: register all 'fix' constants before execution */
     pre_pass_fix();
 

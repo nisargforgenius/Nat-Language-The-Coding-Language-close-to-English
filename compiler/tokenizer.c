@@ -148,8 +148,17 @@ void tokenize(const char *src) {
 
         if (isspace((unsigned char)src[i])) { i++; continue; }
 
-        /* comment */
+        /* single-line comments: # or // */
         if (src[i] == '#') break;
+        if (src[i] == '/' && i+1 < len && src[i+1] == '/') break;
+
+        /* inline block comment: skip to closing star-slash */
+        if (src[i] == '/' && i+1 < len && src[i+1] == '*') {
+            i += 2;
+            while (i+1 < len && !(src[i] == '*' && src[i+1] == '/')) i++;
+            if (i+1 < len) i += 2;
+            continue;
+        }
 
         /* word */
         if (isalpha((unsigned char)src[i]) || src[i] == '_') {
