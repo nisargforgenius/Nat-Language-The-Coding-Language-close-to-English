@@ -5,7 +5,11 @@ Designed to read like natural English — no symbols where words will do.
 This language was created by Nisarg with the help of Claude Sonet Model.
 The earliest version V1.0 and V2.0 of NAT was written by me, but it has so many bugs,
 that i had to take help of Sonet to make it stable. So it changed my code and edited it
-to a better and stable form, but the whole idea and starting point was from me only.
+to a better and stable form, but the whole idea and starting point was from me.
+
+When I first started learning about coding, i was curious about how a coding langauge was created, how did Dennis Ritchie created C and why C performs better than other languages. This made me do Research in coding and at the mid-sem of my second year (yup, I am a college student), I thought of the idea of creating my own language which is simple to understand and is fun to write. I created the first version, the V1.0 and 2.0, had very basic tokenizer and parser and that too in one main.c file, which didnt allowed multi-line code and Idents were broken, this made me give up on the project but then I realised this is an era of AI, so why not use AI for Research and Development of this project, so I first asked ChatGPT about creating a langauge and it told me that its possible to create by taking source code of Python but I didnt want to use any open source project as this projects didnt have what I want, so I uploaded my broken main.c file to Claude and to my suprise, it understood the method, the code structure, my ideology and improved my main.c into seperate parser, token etc files and from there the first stable version of my Language was created "V3.0", it also become my coding partner. I code and It improves it.
+
+I hope the devs will check this project.
 
 ---
 
