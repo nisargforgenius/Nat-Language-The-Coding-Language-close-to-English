@@ -35,6 +35,7 @@ int      g_line_count = 0;
 
 char     g_return_val[MAX_STR] = {0};
 int      g_has_return          = 0;
+int      g_current_line        = 0;
 
 /* ─────────────────────────────────────────────────────────────────
    strip_trailing — remove \r \n and trailing spaces
@@ -89,7 +90,7 @@ static void pre_pass_fix(void) {
    ───────────────────────────────────────────────────────────────── */
 static void print_usage(const char *prog) {
     fprintf(stderr,
-        "NAT Language Interpreter v3.0\n"
+        "NAT Language Interpreter v3.3\n"
         "Usage: %s <script.nat>\n"
         "\n"
         "Quick syntax:\n"

@@ -81,7 +81,7 @@ void execute(Node *n) {
     /* ── make funcname with p1 p2 inside: ... end ── */
     case NODE_FUNC_DEF: {
         if (g_func_count >= MAX_FUNCS) {
-            fprintf(stderr, "NAT: function table overflow\n");
+            err_func_overflow();
             return;
         }
         FuncDef *fn = &g_funcs[g_func_count++];
@@ -101,9 +101,21 @@ void execute(Node *n) {
         for (int i = 0; i < g_func_count; i++)
             if (strcmp(g_funcs[i].name, n->name) == 0) { fn = &g_funcs[i]; break; }
         if (!fn) {
-            fprintf(stderr, "NAT error: unknown function '%s'\n", n->name);
+            const char *_fcands[MAX_FUNCS+1];
+            int _nf = 0;
+            for (int _fi = 0; _fi < g_func_count; _fi++) _fcands[_nf++] = g_funcs[_fi].name;
+            _fcands[_nf] = NULL;
+            err_unknown_func(g_current_line, n->name, _fcands);
             return;
         }
+        /* argument count check */
+        if (n->arg_count != fn->param_count) {
+            err_arg_count(g_current_line, fn->name, fn->param_count, n->arg_count);
+            return;
+        }
+        /* empty body warning */
+        if (fn->body_start > fn->body_end)
+            warn_empty_func(g_current_line, fn->name);
         int  saved_vc  = g_var_count;
         int  saved_ret = g_has_return;
         char saved_rv[MAX_STR];
@@ -189,7 +201,7 @@ void execute(Node *n) {
             if (g_has_return) return;
         }
         if (safety <= 0)
-            fprintf(stderr, "NAT warning: while loop exceeded 1000000 iterations\n");
+            warn_infinite_loop(g_current_line);
         return;
     }
 
@@ -255,6 +267,8 @@ void execute(Node *n) {
    ───────────────────────────────────────────────────────────────── */
 void execute_block(int start, int end) {
     for (int i = start; i <= end && i < g_line_count; i++) {
+
+        g_current_line = i + 1;  /* 1-based line number for error messages */
 
         if (g_has_return) return;
 

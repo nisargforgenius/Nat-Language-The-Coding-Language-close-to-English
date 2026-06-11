@@ -1,0 +1,248 @@
+/*
+ * errors.h — NAT Language v3.3 Error & Warning System
+ *
+ * Provides:
+ *   nat_error()    — fatal error with line number + hint
+ *   nat_warning()  — non-fatal warning with line number + hint
+ *   nat_suggest()  — "did you mean X?" fuzzy match helper
+ *
+ * Every error format:
+ *   NAT error on line N: <what went wrong>
+ *     Hint: <how to fix it>
+ *
+ * Every warning format:
+ *   NAT warning on line N: <what happened>
+ *     Hint: <how to avoid it>
+ */
+
+#ifndef ERRORS_H
+#define ERRORS_H
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+/* current executing line — set by execute_block each iteration */
+extern int g_current_line;
+
+/* ─────────────────────────────────────────────────────────────────
+   FUZZY MATCH — Levenshtein distance (for "did you mean")
+   ───────────────────────────────────────────────────────────────── */
+static inline int nat_levenshtein(const char *a, const char *b) {
+    int la = (int)strlen(a), lb = (int)strlen(b);
+    if (la == 0) return lb;
+    if (lb == 0) return la;
+
+    /* cap to avoid stack overflow on wild input */
+    if (la > 64) la = 64;
+    if (lb > 64) lb = 64;
+
+    int dp[65][65];
+    for (int i = 0; i <= la; i++) dp[i][0] = i;
+    for (int j = 0; j <= lb; j++) dp[0][j] = j;
+    for (int i = 1; i <= la; i++)
+        for (int j = 1; j <= lb; j++) {
+            int cost = (a[i-1] == b[j-1]) ? 0 : 1;
+            int del  = dp[i-1][j] + 1;
+            int ins  = dp[i][j-1] + 1;
+            int sub  = dp[i-1][j-1] + cost;
+            dp[i][j] = del < ins ? (del < sub ? del : sub)
+                                 : (ins < sub ? ins : sub);
+        }
+    return dp[la][lb];
+}
+
+/*
+ * nat_suggest — search a list of candidate strings and return the
+ * closest one if within edit distance 2, else NULL.
+ *
+ * Usage:
+ *   const char *candidates[] = {"score","name","age", NULL};
+ *   const char *s = nat_suggest("scroe", candidates);
+ *   if (s) printf("  Did you mean: '%s' ?\n", s);
+ */
+static inline const char *nat_suggest(const char *word,
+                                       const char **candidates) {
+    if (!word || !candidates) return NULL;
+    const char *best     = NULL;
+    int         best_d   = 3;   /* only suggest if distance <= 2 */
+    for (int i = 0; candidates[i]; i++) {
+        int d = nat_levenshtein(word, candidates[i]);
+        if (d < best_d) { best_d = d; best = candidates[i]; }
+    }
+    return best;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   PRINT HELPERS
+   ───────────────────────────────────────────────────────────────── */
+static inline void nat_error(int line, const char *what, const char *hint) {
+    if (line > 0)
+        fprintf(stderr, "\nNAT error on line %d: %s\n", line, what);
+    else
+        fprintf(stderr, "\nNAT error: %s\n", what);
+    if (hint && hint[0])
+        fprintf(stderr, "  Hint: %s\n\n", hint);
+    else
+        fprintf(stderr, "\n");
+}
+
+static inline void nat_warning(int line, const char *what, const char *hint) {
+    if (line > 0)
+        fprintf(stderr, "\nNAT warning on line %d: %s\n", line, what);
+    else
+        fprintf(stderr, "\nNAT warning: %s\n", what);
+    if (hint && hint[0])
+        fprintf(stderr, "  Hint: %s\n\n", hint);
+    else
+        fprintf(stderr, "\n");
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   SPECIFIC ERROR CONSTRUCTORS
+   (called from eval.c / exec.c / parser.c)
+   ───────────────────────────────────────────────────────────────── */
+
+/* unknown variable — with did-you-mean from live var table */
+static inline void err_unknown_var(int line, const char *name,
+                                   const char **known_vars) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what), "unknown variable '%s'", name);
+    const char *sugg = nat_suggest(name, known_vars);
+    if (sugg) snprintf(hint, sizeof(hint), "Did you mean: '%s' ?", sugg);
+    else       snprintf(hint, sizeof(hint),
+                   "declare it first with:  let %s be <value>.", name);
+    nat_error(line, what, hint);
+}
+
+/* unknown function — with did-you-mean from live func table */
+static inline void err_unknown_func(int line, const char *name,
+                                    const char **known_funcs) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what), "unknown function '%s'", name);
+    const char *sugg = nat_suggest(name, known_funcs);
+    if (sugg) snprintf(hint, sizeof(hint), "Did you mean: '%s' ?", sugg);
+    else       snprintf(hint, sizeof(hint),
+                   "define it first with:  make %s with <params> inside:", name);
+    nat_error(line, what, hint);
+}
+
+/* wrong argument count */
+static inline void err_arg_count(int line, const char *fname,
+                                  int expected, int got) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "'%s' expects %d argument%s but got %d",
+        fname, expected, expected == 1 ? "" : "s", got);
+    snprintf(hint, sizeof(hint),
+        "check your call to '%s' and make sure you pass exactly %d value%s",
+        fname, expected, expected == 1 ? "" : "s");
+    nat_error(line, what, hint);
+}
+
+/* division by zero */
+static inline void err_div_zero(int line) {
+    nat_error(line,
+        "division by zero",
+        "check that your divisor is not 0 before dividing");
+}
+
+/* modulo by zero */
+static inline void err_mod_zero(int line) {
+    nat_error(line,
+        "modulo by zero",
+        "check that the right side of '%' is not 0");
+}
+
+/* math on a non-number string */
+static inline void err_not_a_number(int line, const char *varname) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "cannot do math on '%s' — it is a word not a number", varname);
+    snprintf(hint, sizeof(hint),
+        "use num(%s) to convert it first, or make sure it holds a number",
+        varname);
+    nat_error(line, what, hint);
+}
+
+/* array index out of range */
+static inline void err_index_range(int line, const char *arrname,
+                                    int idx, int size) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "index %d is out of range for '%s' (size is %d)",
+        idx, arrname, size);
+    snprintf(hint, sizeof(hint),
+        "valid indexes are 0 to %d", size - 1);
+    nat_error(line, what, hint);
+}
+
+/* missing colon after if/while/repeat */
+static inline void err_missing_colon(int line, const char *keyword) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "expected ':' after '%s' condition", keyword);
+    snprintf(hint, sizeof(hint),
+        "%s <condition>:\n              %s",
+        keyword, "              ^  colon goes here");
+    nat_error(line, what, hint);
+}
+
+/* unclosed block */
+static inline void err_unclosed_block(int line, const char *keyword) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "'%s' block on line %d was never closed with 'end.'", keyword, line);
+    snprintf(hint, sizeof(hint),
+        "add 'end.' after the last line of your %s block", keyword);
+    nat_error(line, what, hint);
+}
+
+/* missing 'inside' in make */
+static inline void err_make_no_inside(int line, const char *fname) {
+    char what[256], hint[256];
+    snprintf(what, sizeof(what),
+        "function '%s' is missing the 'inside' keyword", fname);
+    snprintf(hint, sizeof(hint),
+        "make %s with <params> inside:\n    ...\nend.", fname);
+    nat_error(line, what, hint);
+}
+
+/* bad repeat syntax */
+static inline void err_bad_repeat(int line) {
+    nat_error(line,
+        "'repeat' has invalid syntax",
+        "use:  repeat 5 times:\n"
+        "  or:  repeat i from 1 to 10 step 1:");
+}
+
+/* empty function body warning */
+static inline void warn_empty_func(int line, const char *fname) {
+    char what[256];
+    snprintf(what, sizeof(what), "function '%s' has an empty body", fname);
+    nat_warning(line, what,
+        "add at least one statement before 'end.'");
+}
+
+/* infinite loop warning */
+static inline void warn_infinite_loop(int line) {
+    nat_warning(line,
+        "while loop ran over 1,000,000 iterations and was stopped",
+        "make sure your loop condition eventually becomes false");
+}
+
+/* variable table overflow */
+static inline void err_var_overflow(void) {
+    nat_error(0,
+        "too many variables — variable table is full",
+        "try to reuse variables or break your program into functions");
+}
+
+/* function table overflow */
+static inline void err_func_overflow(void) {
+    nat_error(0,
+        "too many functions — function table is full",
+        "combine related functions or remove unused ones");
+}
+
+#endif /* ERRORS_H */

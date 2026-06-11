@@ -336,8 +336,8 @@ static Node *parse_power(void) {
 /* unary / builtins: length of, upper of, lower of, abs of, round of */
 static Node *parse_unary(void) {
 
-    /* length of x */
-    if (tok_is(T_LENGTH)) {
+    /* length of x — only a builtin when followed by 'of', otherwise it's a var name */
+    if (tok_is(T_LENGTH) && tok_peek(T_OF, 1)) {
         tok_consume();
         if (tok_is(T_OF)) tok_consume();
         Node *n = node_new(NODE_LENGTH);
@@ -345,7 +345,7 @@ static Node *parse_unary(void) {
         return n;
     }
     /* upper of x */
-    if (tok_is(T_UPPER)) {
+    if (tok_is(T_UPPER) && tok_peek(T_OF, 1)) {
         tok_consume();
         if (tok_is(T_OF)) tok_consume();
         Node *n = node_new(NODE_UPPER);
@@ -353,7 +353,7 @@ static Node *parse_unary(void) {
         return n;
     }
     /* lower of x */
-    if (tok_is(T_LOWER)) {
+    if (tok_is(T_LOWER) && tok_peek(T_OF, 1)) {
         tok_consume();
         if (tok_is(T_OF)) tok_consume();
         Node *n = node_new(NODE_LOWER);
@@ -361,7 +361,7 @@ static Node *parse_unary(void) {
         return n;
     }
     /* abs of x */
-    if (tok_is(T_ABS)) {
+    if (tok_is(T_ABS) && tok_peek(T_OF, 1)) {
         tok_consume();
         if (tok_is(T_OF)) tok_consume();
         Node *n = node_new(NODE_ABS);
@@ -369,11 +369,19 @@ static Node *parse_unary(void) {
         return n;
     }
     /* round of x */
-    if (tok_is(T_ROUND)) {
+    if (tok_is(T_ROUND) && tok_peek(T_OF, 1)) {
         tok_consume();
         if (tok_is(T_OF)) tok_consume();
         Node *n = node_new(NODE_ROUND);
         n->left = parse_factor();
+        return n;
+    }
+    /* keyword used as variable name (e.g. 'length', 'upper' as param) */
+    if (tok_is(T_LENGTH) || tok_is(T_UPPER) || tok_is(T_LOWER) ||
+        tok_is(T_ABS)    || tok_is(T_ROUND)) {
+        Node *n = node_new(NODE_VAR);
+        strncpy(n->name, tok_cur()->value, 63);
+        tok_consume();
         return n;
     }
 
@@ -505,6 +513,17 @@ static int find_end(int line_index) {
 
         if (depth == 0) return j;
     }
+    /* never found end — report unclosed block */
+    char *kw = g_lines[line_index];
+    while (*kw == ' ' || *kw == '\t') kw++;
+    char keyword[16] = {0};
+    int ki = 0;
+    while (kw[ki] && kw[ki] != ' ' && kw[ki] != ':' && ki < 15) {
+        keyword[ki] = kw[ki];
+        ki++;
+    }
+    keyword[ki] = '\0';
+    err_unclosed_block(line_index + 1, keyword);
     return g_line_count - 1;
 }
 
@@ -680,12 +699,19 @@ static Node *parse_make(int line_index) {
     if (tok_is(T_WITH)) {
         tok_consume();
         while (!tok_is(T_INSIDE) && g_tok_pos < g_tok_count) {
-            if (tok_is(T_IDENT) && n->param_count < MAX_PARAMS)
-                strncpy(n->params[n->param_count++], tok_cur()->value, 63);
+            /* accept IDENT or any keyword used as a param name (e.g. 'length', 'width') */
+            Token *pt = tok_cur();
+            if (pt && pt->value[0] && !tok_is(T_COLON) && n->param_count < MAX_PARAMS) {
+                strncpy(n->params[n->param_count++], pt->value, 63);
+            }
             tok_consume();
         }
     }
-    if (tok_is(T_INSIDE)) tok_consume();
+    if (tok_is(T_INSIDE)) {
+        tok_consume();
+    } else {
+        err_make_no_inside(line_index + 1, n->name);
+    }
 
     n->body_start = line_index + 1;
     n->body_end   = find_end(line_index);
@@ -717,6 +743,11 @@ static Node *parse_repeat(int line_index) {
     if (!tok_is(T_TIMES) && !tok_is(T_COLON) && g_tok_pos < g_tok_count)
         n->left = parse_factor();
     if (tok_is(T_TIMES)) tok_consume();
+    if (tok_is(T_COLON)) {
+        tok_consume();
+    } else {
+        err_missing_colon(line_index + 1, "repeat");
+    }
     n->body_start = line_index + 1;
     n->body_end   = find_end(line_index);
     return n;
@@ -727,7 +758,11 @@ static Node *parse_while(int line_index) {
     tok_consume();
     Node *n   = node_new(NODE_WHILE);
     n->left   = parse_expression();
-    if (tok_is(T_COLON)) tok_consume();
+    if (tok_is(T_COLON)) {
+        tok_consume();
+    } else {
+        err_missing_colon(line_index + 1, "while");
+    }
     n->body_start = line_index + 1;
     n->body_end   = find_end(line_index);
     return n;
@@ -738,7 +773,11 @@ static Node *parse_if(int line_index) {
     tok_expect(T_IF);
     Node *n = node_new(NODE_IF);
     n->left = parse_expression();
-    if (tok_is(T_COLON)) tok_consume();
+    if (tok_is(T_COLON)) {
+        tok_consume();
+    } else {
+        err_missing_colon(line_index + 1, "if");
+    }
 
     int end_line  = find_end(line_index);
     int else_line = -1;
@@ -872,17 +911,23 @@ Node *parse_statement(int line_index) {
         return n;
     }
 
-    /* function call */
+    /* function call — known or unknown (unknown will error at runtime) */
     {
         int is_known_func = 0;
         for (int _fi = 0; _fi < g_func_count; _fi++)
             if (strcmp(g_funcs[_fi].name, t->value) == 0)
                 { is_known_func = 1; break; }
 
-        if (is_known_func) {
-            return parse_call_stmt();
-        } else if (strcmp(ty, T_IDENT) == 0 && tok_peek(T_LPAREN, 1)) {
-            return parse_call_stmt();
+        if (strcmp(ty, T_IDENT) == 0) {
+            /* known func: English or paren style
+               unknown func with parens: still parse, runtime will error
+               unknown bare word with args: also parse for runtime error */
+            if (is_known_func || tok_peek(T_LPAREN, 1) ||
+                (g_tok_pos + 1 < g_tok_count &&
+                 !tok_peek(T_DOT,   1) &&
+                 !tok_peek(T_COLON, 1) &&
+                 !tok_peek(T_BE,    1)))
+                return parse_call_stmt();
         }
     }
 

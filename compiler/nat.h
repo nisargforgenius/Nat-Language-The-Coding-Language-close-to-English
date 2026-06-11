@@ -254,3 +254,9 @@ Node     *node_new(NodeType kind);
 void      node_free(Node *n);
 
 #endif /* NAT_H */
+
+/* ─────────────────────────────────────────────────────────────────
+   ERROR SYSTEM (v3.3)
+   ───────────────────────────────────────────────────────────────── */
+extern int g_current_line;   /* set by execute_block each iteration */
+#include "errors.h"

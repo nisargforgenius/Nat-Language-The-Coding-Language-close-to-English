@@ -98,7 +98,18 @@ static void call_function(const char *fname,
         if (strcmp(g_funcs[i].name, fname) == 0) { fn = &g_funcs[i]; break; }
 
     if (!fn) {
-        fprintf(stderr, "NAT error: unknown function '%s'\n", fname);
+        const char *_fcands[MAX_FUNCS+1];
+        int _nf = 0;
+        for (int _fi = 0; _fi < g_func_count; _fi++) _fcands[_nf++] = g_funcs[_fi].name;
+        _fcands[_nf] = NULL;
+        err_unknown_func(g_current_line, fname, _fcands);
+        strncpy(out, "", out_size);
+        return;
+    }
+
+    /* argument count check */
+    if (call_argc != fn->param_count) {
+        err_arg_count(g_current_line, fn->name, fn->param_count, call_argc);
         strncpy(out, "", out_size);
         return;
     }
@@ -151,7 +162,13 @@ void eval(Node *n, char *out, int out_size) {
 
         Variable *v = find_var(n->name);
         if (!v) {
-            fprintf(stderr, "NAT error: unknown variable '%s'\n", n->name);
+            {
+            const char *_cands[MAX_VARS+1];
+            int _nc = 0;
+            for (int _i = 0; _i < g_var_count; _i++) _cands[_nc++] = g_vars[_i].name;
+            _cands[_nc] = NULL;
+            err_unknown_var(g_current_line, n->name, _cands);
+        }
             return;
         }
         if (v->is_array) {
@@ -170,15 +187,18 @@ void eval(Node *n, char *out, int out_size) {
     case NODE_VAR_IDX: {
         Variable *v = find_var(n->name);
         if (!v || !v->is_array) {
-            fprintf(stderr, "NAT error: '%s' is not an array\n", n->name);
+            char _what[256];
+            snprintf(_what, sizeof(_what),
+                "'%s' is not an array — cannot use index [ ]", n->name);
+            nat_error(g_current_line, _what,
+                "declare it as an array:  let nums are 1 2 3.");
             return;
         }
         char idxstr[MAX_STR] = {0};
         eval(n->left, idxstr, MAX_STR);
         int idx = atoi(idxstr);
         if (idx < 0 || idx >= v->arr_len) {
-            fprintf(stderr, "NAT error: index %d out of range for '%s'\n",
-                    idx, n->name);
+            err_index_range(g_current_line, n->name, idx, v->arr_len);
             return;
         }
         strncpy(out, v->arr[idx], out_size-1);
@@ -292,14 +312,14 @@ void eval(Node *n, char *out, int out_size) {
                 case NODE_POW_EXPR: res = pow(a, b); break;
                 case NODE_MOD_EXPR:
                     if ((long long)b == 0) {
-                        fprintf(stderr, "NAT error: modulo by zero\n");
+                        err_mod_zero(g_current_line);
                         strncpy(out, "0", out_size-1); return;
                     }
                     res = (double)((long long)a % (long long)b);
                     break;
                 default: /* DIV */
                     if (b == 0.0) {
-                        fprintf(stderr, "NAT error: division by zero\n");
+                        err_div_zero(g_current_line);
                         strncpy(out, "0", out_size-1); return;
                     }
                     res = a / b;
