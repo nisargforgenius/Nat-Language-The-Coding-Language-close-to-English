@@ -1,6 +1,6 @@
-# NAT Language v3.0
+# NAT Language v3.6
 
-A simple, English-style interpreted programming language written in pure C.
+A simple, English-style compiled programming language written in pure C.
 Designed to read like natural English — no symbols where words will do.
 
 ---
@@ -8,35 +8,41 @@ Designed to read like natural English — no symbols where words will do.
 ## Build
 
 ```bash
-gcc *.c -o nat -lm
-```
-
-Windows (MinGW):
-```bash
-gcc *.c -o nat.exe -lm
+gcc *.c -o nat.exe
 ```
 
 ## Run
 
 ```bash
-./nat hello.nat
-./nat myscript.nat
+./nat.exe hello.nat
+./nat.exe myscript.nat
 ```
 
 ---
 
-## What Changed in v3.0
+## What's New in v3.6
 
-| Old (v2)             | New (v3)                     | Notes                        |
-|----------------------|------------------------------|------------------------------|
-| `let x = int(5).`    | `let x be num(5).`           | `be` replaces `=`            |
-| `int()` / `float()`  | `num()`                      | One type for all numbers     |
-| `let name = string(Nisarg).` | `let name be Nisarg.` | Bare word = string     |
-| *(not available)*    | `fix PI 3.14`                | Constants, no dot needed     |
-| *(not available)*    | `add x with y to z.`         | English arithmetic assignment|
-| `repeat i from 1 to 5` → prints 1–4 | `repeat i from 1 to 5` → prints 1–5 | Now **inclusive** |
+Full File I/O system — read, write, append, insert, remove, and loop over files.
 
-Old syntax (`= int() float() string()`) still works for backwards compatibility.
+- `write "text" to "file.txt".` — create or overwrite
+- `write "text" to "file.txt" at line N.` — overwrite a specific line
+- `append "text" to "file.txt".` — add to end
+- `insert "text" to "file.txt" at line N.` — insert, pushes lines down
+- `remove line N from "file.txt".` — delete a specific line
+- `read "file.txt".` — print file with `line N | content` format
+- `let x be read "file.txt" at line N.` — read a line into a variable
+- `if file "file.txt" exists:` — check if a file exists
+- `delete file "file.txt".` — delete a file
+- `each line in file "file.txt":` — loop over every line
+- `write x inside "file.nat"` — runtime variable injection (no disk write)
+- `x = 10.` — `=` now works as assignment alongside `x be 10.`
+- Bare function calls auto-print return value — `area_rect(2,5).` prints without needing `show`
+
+### Bug fixes
+- `sum = num1 + num2.` was incorrectly treated as a function call — fixed
+- `area_rect(2,5).` as a bare statement returned 0 instead of the result — fixed
+
+> **Note:** Windows users should use v3.6.1 instead — it includes a CRLF hotfix.
 
 ---
 
@@ -44,180 +50,137 @@ Old syntax (`= int() float() string()`) still works for backwards compatibility.
 
 ### Variables
 ```nat
-let x    be num(42).
-let pi   be num(3.14).
-let name be Nisarg.
-let msg  be "Hello World".
+let x be 42.
+let name be "Nisarg".
+let x, y, z.
+
+// = also works as assignment
+x = 100.
 ```
 
-### Constants  (`fix` — immutable, no dot needed)
+### File I/O
 ```nat
-fix MAX 100
-fix PI 3.14159
-fix GREETING Hello
-```
-Constants can be used anywhere a value is expected:
-```nat
-show(PI).
-show(PI * r * r).
-repeat i from 1 to MAX step 1:
+// Write
+write "Hello NAT" to "notes.txt".
+append "Another line" to "notes.txt".
+write "Updated" to "notes.txt" at line 1.
+insert "New first line" to "notes.txt" at line 1.
+remove line 2 from "notes.txt".
+
+// Read
+read "notes.txt".
+let line1 be read "notes.txt" at line 1.
+show line1.
+
+// Check and delete
+if file "notes.txt" exists:
+    show "file found".
+    delete file "notes.txt".
+end.
+
+// Loop over lines
+each line in file "log.txt":
+    show line.
+end.
 ```
 
-### Show (print)
+### Runtime injection
 ```nat
-show(x).
-show("Hello " and name and "!").
-show(x + y).
-show(PI * r * r).
+// write x inside injects x into the target file at runtime only
+// the file on disk is NEVER modified
+let x be 10.
+write x inside "other.nat".
+// when other.nat runs, x will be 10 regardless of what other.nat declares
 ```
 
-### Math  `+ - * / %`
+### Using the standard library
 ```nat
-show(10 + 3).     # 13
-show(10 - 3).     # 7
-show(10 * 3).     # 30
-show(10 / 4).     # 2.5
-show(10 % 3).     # 1
-show((x + y) * 2).
+use math.tree
+show sqrt(144).
+show pow(2, 10).
+
+use geometry.tree
+area_rect(5, 3).       // auto-prints: 15
+show area_circle(7).
+
+use string.tree
+show capitalize("hello world").
+
+use convert.tree
+show celsius_to_fahrenheit(100).
 ```
 
-### String concatenation  `and`
+### Arrays
 ```nat
-show("Hello " and name and "!").
-show("Result: " and x + y).
+let fruits are "apple" "mango" "banana".
+each item in fruits:
+    show item.
+end.
 ```
-
-### add … with … to …
-English-style arithmetic assignment — add two values and store result:
-```nat
-add x with y to total.
-add 100 with 200 to sum.
-add name with "!" to name.
-```
-Equivalent to `total = x + y` in other languages.
 
 ### Functions
-```nat
-make greet with name inside:
-    show("Hello " and name).
-end.
-greet("World").
-```
-
-Return a value with `give`:
-```nat
-make square with n inside:
-    give n * n.
-end.
-show(square(7)).
-```
-
-Multiple parameters:
 ```nat
 make add with a b inside:
     give a + b.
 end.
-show(add(5, 10)).
+
+add(3, 4).        // auto-prints: 7
+show add(10, 20). // also works
 ```
 
-Recursive functions work:
+### For loop
 ```nat
-make fib with n inside:
-    if n < 2:
-        give n.
-    end.
-    give fib(n - 1) + fib(n - 2).
-end.
-show(fib(10)).
-```
-
-### For loop  (INCLUSIVE — `from 1 to 5` prints 1 2 3 4 5)
-```nat
-repeat i from 1 to 5 step 1:
-    show(i).
-end.
-
-# Step 2:
-repeat i from 0 to 10 step 2:
-    show(i).
-end.
-
-# Variable bounds:
-fix START 1
-fix END 10
-repeat i from START to END step 1:
-    show(i).
+repeat i from 1 to 5:
+    show i.
 end.
 ```
 
 ### Repeat N times
 ```nat
 repeat 5 times:
-    show("Hi").
-end.
-
-let n be num(3).
-repeat n times:
-    show("loop").
+    show "Hi".
 end.
 ```
 
 ### While loop
 ```nat
-let i be num(0).
+let i be 0.
 while i < 10:
-    show(i).
-    let i be i + 1.
+    show i.
+    i be i + 1.
 end.
 ```
 
-### If / Else
+### If / Else / Else If
 ```nat
-if x > 5:
-    show("big").
+if x > 10:
+    show "big".
+else if x > 5:
+    show "medium".
 else:
-    show("small").
+    show "small".
 end.
 ```
 
-Operators: `==  !=  >  <  >=  <=`
-
-English comparisons:
+### Create graph
 ```nat
-if x is greater than 5:  show("big").  end.
-if x is less than 10:    show("ok").   end.
-if x is not 0:           show("yes").  end.
-```
-
-Logical NOT:
-```nat
-if not x == 0:
-    show("x is non-zero").
+create graph "Sales":
+    type bar.
+    label "Jan" value 10.
+    label "Feb" value 25.
+    label "Mar" value 40.
 end.
-```
-
-### Arrays
-```nat
-let nums are 10 20 30 40 50.
-show(nums[0]).
-show(nums[4]).
 ```
 
 ### Input
 ```nat
-show("What is your name?").
 ask for name.
-show("Hello " and name).
-
-show("Enter two numbers:").
-ask for a b.
-add a with b to total.
-show(total).
+show "Hello " and name.
 ```
 
 ### Comments
 ```nat
-# This is a comment
+// This is a comment
 ```
 
 ---
@@ -225,66 +188,47 @@ show(total).
 ## Complete Example
 
 ```nat
-fix MAX 10
+// Write a log file and read it back
 
-make power with base exp inside:
-    let result be num(1).
-    repeat i from 1 to exp step 1:
-        let result be result * base.
-    end.
-    give result.
+write "NAT v3.6 launched." to "log.txt".
+append "File I/O working." to "log.txt".
+append "All systems go." to "log.txt".
+
+show "--- Log contents ---".
+read "log.txt".
+
+show "--- Processing each line ---".
+each line in file "log.txt":
+    show ">> " and line.
 end.
 
-repeat i from 1 to MAX step 1:
-    show(power(2, i)).
-end.
+delete file "log.txt".
+show "Log cleared.".
 ```
 
 ---
 
 ## File Structure
 
-| File           | Role                                      |
-|----------------|-------------------------------------------|
-| `nat.h`        | Types, constants, global state externs    |
-| `tokenizer.c`  | Source text → flat token array            |
-| `parser.c`     | Tokens → AST (recursive descent)          |
-| `eval.c`       | Evaluate expression nodes → value         |
-| `exec.c`       | Execute statement nodes, manage scope     |
-| `main.c`       | Entry point, `fix` pre-pass, global state |
-| `hello.nat`    | Full feature showcase                     |
-| `examples.nat` | Fibonacci, factorial, power, more         |
-
-## v3.2 — New Features
-
-### Logic
 ```
-if x > 0 and x < 10:          # symbolic and/or
-if x < 0 or x > 100:
-if x greater than 0 and x less than 10:   # English style
-if 1 < x < 10:                 # chained compare
-if x in middle of 1 and 10:   # between check
-```
-
-### String Operations
-```
-show length of name.           # string length
-show upper of name.            # UPPERCASE
-show lower of name.            # lowercase
-if name contains "Nis":        # substring check
-```
-
-### Math
-```
-let p be 2^8.                  # power (no spaces around ^)
-show abs of num(-5).           # absolute value → 5
-show round of num(3.7).        # round → 4
-```
-
-### Variable Declaration
-```
-let x, b, c.                   # declare multiple, no value
-let score.                     # declare single, no value
-x be 10.                       # assign after declaration
-b be 20.
+nat_language_v3.6/
+├── compiler/
+│   ├── main.c
+│   ├── parser.c
+│   ├── eval.c
+│   ├── exec.c
+│   ├── tokenizer.c
+│   ├── nat.h
+│   └── errors.h
+├── lib/
+│   ├── math.tree
+│   ├── geometry.tree
+│   ├── string.tree
+│   └── convert.tree
+├── examples/
+│   ├── hello.nat
+│   ├── examples.nat
+│   ├── fileio_test.nat
+│   └── graph_test.nat
+└── README.md
 ```
