@@ -1,16 +1,16 @@
 /*
- * nat.h — NAT Language v3.1.1: Shared Types, Constants, Forward Declarations
+ * nat.h — NAT Language v3.2: Shared Types, Constants, Forward Declarations
  *
  * NAT is a simple, English-style interpreted language.
  * Architecture: tokenizer → parser → AST → executor/evaluator
  *
- * v3.0 changes:
- *  - num() replaces int()/float()/double() — one universal number type
- *  - 'be' replaces '=' for assignment
- *  - Plain string: let name be hello.   (no quotes needed for single words)
- *  - fix pi 3.14                        (constants, no dot)
- *  - add x with y to z.                 (English arithmetic assignment)
- *  - repeat i from 1 to 6 is INCLUSIVE  (loop goes 1..6)
+ * v3.2 additions:
+ *   Logic   : and/or between conditions, English greater/less than with and/or
+ *             chained compare (1 < x < 10), "x in middle of A and B"
+ *   Strings : length of x, upper of x, lower of x, x contains "y"
+ *   Math    : 2^8 power operator, abs of x, round of x
+ *   Vars    : let x, b, c.  (declare without value)
+ *             x be 10.      (assign after declaration)
  */
 
 #ifndef NAT_H
@@ -21,6 +21,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <math.h>
 
 /* ─────────────────────────────────────────────
    LIMITS
@@ -58,6 +59,7 @@
 #define T_ASK      "ASK"
 #define T_FOR      "FOR"
 #define T_AND      "AND"
+#define T_OR       "OR"
 #define T_ARE      "ARE"
 #define T_IF       "IF"
 #define T_ELSE     "ELSE"
@@ -67,13 +69,23 @@
 #define T_LESS     "LESS"
 #define T_THAN     "THAN"
 #define T_WHILE    "WHILE"
-#define T_NUM      "NUM"    /* num() — universal number wrapper */
+#define T_NUM      "NUM"
+#define T_IN       "IN"
+#define T_MIDDLE   "MIDDLE"
+#define T_OF       "OF"
+#define T_LENGTH   "LENGTH"
+#define T_UPPER    "UPPER"
+#define T_LOWER    "LOWER"
+#define T_CONTAINS "CONTAINS"
+#define T_ABS      "ABS"
+#define T_ROUND    "ROUND"
 
 #define T_PLUS     "PLUS"
 #define T_MINUS    "MINUS"
 #define T_STAR     "STAR"
 #define T_SLASH    "SLASH"
 #define T_MOD      "MOD"
+#define T_POW      "POW"
 #define T_EQ       "EQ"
 #define T_NEQ      "NEQ"
 #define T_GT       "GT"
@@ -106,6 +118,8 @@ typedef struct {
    ───────────────────────────────────────────── */
 typedef enum {
     NODE_LET,
+    NODE_LET_DECLARE,   /* let x, b, c.  — declare with no value */
+    NODE_ASSIGN,        /* x be 10.       — assign to existing var */
     NODE_ARRAY,
     NODE_SHOW,
     NODE_GIVE,
@@ -117,7 +131,7 @@ typedef enum {
     NODE_FOR_LOOP,
     NODE_WHILE,
     NODE_IF,
-    NODE_ADD_ASSIGN,   /* add x with y to z  */
+    NODE_ADD_ASSIGN,
     NODE_VAL,
     NODE_VAR,
     NODE_VAR_IDX,
@@ -126,13 +140,22 @@ typedef enum {
     NODE_MUL_EXPR,
     NODE_DIV_EXPR,
     NODE_MOD_EXPR,
+    NODE_POW_EXPR,      /* 2^8 */
     NODE_CONCAT,
+    NODE_AND,           /* logical and */
+    NODE_OR,            /* logical or  */
     NODE_CMP_EQ,
     NODE_CMP_NEQ,
     NODE_CMP_GT,
     NODE_CMP_LT,
     NODE_CMP_GTE,
     NODE_CMP_LTE,
+    NODE_CONTAINS,      /* str contains substr */
+    NODE_LENGTH,        /* length of x  */
+    NODE_UPPER,         /* upper of x   */
+    NODE_LOWER,         /* lower of x   */
+    NODE_ABS,           /* abs of x     */
+    NODE_ROUND,         /* round of x   */
     NODE_NOOP
 } NodeType;
 
@@ -157,10 +180,8 @@ struct Node {
     int       body_start;
     int       body_end;
 
-    /* for-loop / while */
-    int       loop_to;       /* also: end-line index for NODE_IF */
+    int       loop_to;
 
-    /* ask variables */
     char      ask_vars[MAX_ASK_VARS][64];
     int       ask_count;
 };

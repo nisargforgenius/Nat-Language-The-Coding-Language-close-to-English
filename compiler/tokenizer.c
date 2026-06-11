@@ -1,19 +1,14 @@
 /*
- * tokenizer.c — NAT Language v3.0 Tokenizer
+ * tokenizer.c — NAT Language v3.2 Tokenizer
  *
- * Converts one source line into a flat token array.
- * Fully whitespace-tolerant: any amount of spaces/tabs is fine.
- *
- * v3.0 keyword changes:
- *   num     — universal number wrapper (replaces int/float/double)
- *   be      — assignment keyword (replaces =)
- *   fix     — constant declaration
- *   add     — English arithmetic assignment
+ * v3.2 new keywords:
+ *   or, in, middle, of, length, upper, lower, contains, abs, round
+ * v3.2 new operator:
+ *   ^ tokenised as T_POW (only when attached: 2^8, no spaces)
  */
 
 #include "nat.h"
 
-/* ── add one token ─────────────────────────────────────────────── */
 static void tok_add(const char *type, const char *value) {
     if (g_tok_count >= MAX_TOKENS) return;
     strncpy(g_tokens[g_tok_count].type,  type,  sizeof(g_tokens[0].type)  - 1);
@@ -23,49 +18,56 @@ static void tok_add(const char *type, const char *value) {
     g_tok_count++;
 }
 
-/* ── keyword table ─────────────────────────────────────────────── */
 typedef struct { const char *word; const char *tok; } KW;
 
 static const KW keywords[] = {
-    /* core language */
-    {"let",     T_LET    },
-    {"be",      T_BE     },   /* assignment: let x be 5. */
-    {"fix",     T_FIX    },   /* constant:   fix pi 3.14 */
-    {"add",     T_ADD    },   /* arithmetic: add x with y to z. */
-    {"show",    T_SHOW   },
-    {"make",    T_MAKE   },
-    {"with",    T_WITH   },
-    {"inside",  T_INSIDE },
-    {"end",     T_END    },
-    {"give",    T_GIVE   },
+    /* core */
+    {"let",      T_LET     },
+    {"be",       T_BE      },
+    {"fix",      T_FIX     },
+    {"add",      T_ADD     },
+    {"show",     T_SHOW    },
+    {"make",     T_MAKE    },
+    {"with",     T_WITH    },
+    {"inside",   T_INSIDE  },
+    {"end",      T_END     },
+    {"give",     T_GIVE    },
     /* loops */
-    {"repeat",  T_REPEAT },
-    {"times",   T_TIMES  },
-    {"from",    T_FROM   },
-    {"to",      T_TO     },
-    {"step",    T_STEP   },
-    {"while",   T_WHILE  },
+    {"repeat",   T_REPEAT  },
+    {"times",    T_TIMES   },
+    {"from",     T_FROM    },
+    {"to",       T_TO      },
+    {"step",     T_STEP    },
+    {"while",    T_WHILE   },
     /* input */
-    {"ask",     T_ASK    },
-    {"for",     T_FOR    },
-    /* expressions */
-    {"and",     T_AND    },
-    {"are",     T_ARE    },
+    {"ask",      T_ASK     },
+    {"for",      T_FOR     },
+    /* logic */
+    {"and",      T_AND     },
+    {"or",       T_OR      },
+    {"are",      T_ARE     },
     /* conditionals */
-    {"if",      T_IF     },
-    {"else",    T_ELSE   },
-    {"is",      T_IS     },
-    {"not",     T_NOT    },
-    {"greater", T_GREATER},
-    {"less",    T_LESS   },
-    {"than",    T_THAN   },
-    /* number wrapper — universal type */
-    {"num",     T_NUM    },
-    /* legacy: int() still works as an alias for num() */
-    {"int",     T_NUM    },
-    /* NOTE: float/double are NOT keywords — they are valid identifiers
-       that users can freely use as variable or function names           */
-    {"string",  "STR_TYPE"},
+    {"if",       T_IF      },
+    {"else",     T_ELSE    },
+    {"is",       T_IS      },
+    {"not",      T_NOT     },
+    {"greater",  T_GREATER },
+    {"less",     T_LESS    },
+    {"than",     T_THAN    },
+    /* string/math builtins */
+    {"in",       T_IN      },
+    {"middle",   T_MIDDLE  },
+    {"of",       T_OF      },
+    {"length",   T_LENGTH  },
+    {"upper",    T_UPPER   },
+    {"lower",    T_LOWER   },
+    {"contains", T_CONTAINS},
+    {"abs",      T_ABS     },
+    {"round",    T_ROUND   },
+    /* number wrapper */
+    {"num",      T_NUM     },
+    {"int",      T_NUM     },   /* legacy alias */
+    {"string",   "STR_TYPE"},
     {NULL, NULL}
 };
 
@@ -76,7 +78,6 @@ static const char *keyword_lookup(const char *w) {
     return NULL;
 }
 
-/* ── main tokenize ─────────────────────────────────────────────── */
 void tokenize(const char *src) {
     g_tok_count = 0;
     g_tok_pos   = 0;
@@ -86,27 +87,23 @@ void tokenize(const char *src) {
 
     while (i < len) {
 
-        /* skip whitespace */
         if (isspace((unsigned char)src[i])) { i++; continue; }
 
-        /* comment: # to end of line */
+        /* comment */
         if (src[i] == '#') break;
 
-        /* ── word (keyword or identifier) ── */
+        /* word */
         if (isalpha((unsigned char)src[i]) || src[i] == '_') {
             char word[128]; int j = 0;
             while (i < len && (isalnum((unsigned char)src[i]) || src[i] == '_'))
                 word[j++] = src[i++];
             word[j] = '\0';
-
             const char *kw = keyword_lookup(word);
             tok_add(kw ? kw : T_IDENT, word);
             continue;
         }
 
-        /* ── number (integer or decimal) ──
-           Only consume '.' as decimal if next char is a digit.
-           Trailing "300." — the dot is a statement terminator, not decimal. */
+        /* number — may be followed immediately by ^ for power: 2^8 */
         if (isdigit((unsigned char)src[i])) {
             char num[64]; int j = 0;
             while (i < len) {
@@ -114,7 +111,6 @@ void tokenize(const char *src) {
                     num[j++] = src[i++];
                 } else if (src[i] == '.' && (i+1) < len
                            && isdigit((unsigned char)src[i+1])) {
-                    /* true decimal point followed by digit */
                     num[j++] = src[i++];
                 } else {
                     break;
@@ -123,23 +119,26 @@ void tokenize(const char *src) {
             }
             num[j] = '\0';
             tok_add(T_NUMBER, num);
+            /* immediately check for ^ (power, no spaces allowed) */
+            if (i < len && src[i] == '^') {
+                tok_add(T_POW, "^");
+                i++;
+            }
             continue;
         }
 
-        /* ── negative number literal: -5, -3.14 ── */
+        /* negative number literal */
         if (src[i] == '-' && (i+1) < len && isdigit((unsigned char)src[i+1])) {
-            /* only treat as negative literal if preceded by an operator/open
-               context — simple heuristic: if last token is not NUMBER/IDENT/RPAREN */
             int is_neg = 1;
             if (g_tok_count > 0) {
                 const char *lt = g_tokens[g_tok_count-1].type;
                 if (strcmp(lt, T_NUMBER) == 0 || strcmp(lt, T_IDENT)  == 0 ||
                     strcmp(lt, T_RPAREN) == 0 || strcmp(lt, T_RBRACK) == 0)
-                    is_neg = 0; /* it's a minus operator */
+                    is_neg = 0;
             }
             if (is_neg) {
                 char num[64]; int j = 0;
-                num[j++] = src[i++]; /* '-' */
+                num[j++] = src[i++];
                 while (i < len) {
                     if (isdigit((unsigned char)src[i])) {
                         num[j++] = src[i++];
@@ -155,10 +154,10 @@ void tokenize(const char *src) {
             }
         }
 
-        /* ── quoted string ── */
+        /* quoted string */
         if (src[i] == '"') {
             char str[MAX_STR]; int j = 0;
-            i++; /* skip opening quote */
+            i++;
             while (i < len && src[i] != '"') {
                 if (src[i] == '\\' && i+1 < len) {
                     i++;
@@ -176,12 +175,12 @@ void tokenize(const char *src) {
                 if (j >= MAX_STR - 1) break;
             }
             str[j] = '\0';
-            if (i < len) i++; /* skip closing quote */
+            if (i < len) i++;
             tok_add(T_STRING, str);
             continue;
         }
 
-        /* ── two-character operators ── */
+        /* two-character operators */
         if (i+1 < len) {
             if (src[i]=='=' && src[i+1]=='=') { tok_add(T_EQ,  "=="); i+=2; continue; }
             if (src[i]=='!' && src[i+1]=='=') { tok_add(T_NEQ, "!="); i+=2; continue; }
@@ -189,7 +188,7 @@ void tokenize(const char *src) {
             if (src[i]=='<' && src[i+1]=='=') { tok_add(T_LTE, "<="); i+=2; continue; }
         }
 
-        /* ── single-character tokens ── */
+        /* single-character tokens */
         switch (src[i]) {
             case '+': tok_add(T_PLUS,  "+"); break;
             case '-': tok_add(T_MINUS, "-"); break;
@@ -198,7 +197,8 @@ void tokenize(const char *src) {
             case '%': tok_add(T_MOD,   "%"); break;
             case '>': tok_add(T_GT,    ">"); break;
             case '<': tok_add(T_LT,    "<"); break;
-            case '=': tok_add("ASSIGN", "="); break;
+            case '^': tok_add(T_POW,   "^"); break;
+            case '=': tok_add("ASSIGN","="); break;
             case '(': tok_add(T_LPAREN,"("); break;
             case ')': tok_add(T_RPAREN,")"); break;
             case '[': tok_add(T_LBRACK,"["); break;
@@ -206,7 +206,6 @@ void tokenize(const char *src) {
             case ',': tok_add(T_COMMA, ","); break;
             case '.': tok_add(T_DOT,   "."); break;
             case ':': tok_add(T_COLON, ":"); break;
-            /* silently skip unknown characters */
         }
         i++;
     }

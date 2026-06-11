@@ -1,15 +1,19 @@
 /*
- * eval.c — NAT Language v3.0 Expression Evaluator
+ * eval.c — NAT Language v3.2 Expression Evaluator
  *
- * Walks an expression subtree and writes the result into `out`.
- * Supports: literals, variables, constants, array indexing,
- *           arithmetic (+−×÷%), string concat (and),
- *           comparisons, and function calls.
+ * v3.2 additions:
+ *   NODE_AND, NODE_OR      — logical and/or
+ *   NODE_CONTAINS          — string contains check
+ *   NODE_POW_EXPR          — 2^8 power
+ *   NODE_LENGTH            — length of x
+ *   NODE_UPPER             — upper of x
+ *   NODE_LOWER             — lower of x
+ *   NODE_ABS               — abs of x
+ *   NODE_ROUND             — round of x
  */
 
 #include "nat.h"
 
-/* forward: executor needed for function calls inside expressions */
 void execute_block(int start, int end);
 
 /* ─────────────────────────────────────────────────────────────────
@@ -24,14 +28,12 @@ Variable *find_var(const char *name) {
 }
 
 Variable *set_var(const char *name, const char *value) {
-    /* update existing */
     for (int i = g_var_count - 1; i >= 0; i--)
         if (strcmp(g_vars[i].name, name) == 0) {
             strncpy(g_vars[i].value, value, MAX_STR-1);
             g_vars[i].is_array = 0;
             return &g_vars[i];
         }
-    /* create new */
     if (g_var_count >= MAX_VARS) {
         fprintf(stderr, "NAT: variable table overflow\n");
         return NULL;
@@ -59,7 +61,6 @@ Constant *find_const(const char *name) {
    INTERNAL HELPERS
    ───────────────────────────────────────────────────────────────── */
 
-/* Is string a valid number? */
 static int is_number(const char *s) {
     if (!s || !*s) return 0;
     const char *p = s;
@@ -73,7 +74,6 @@ static int is_number(const char *s) {
     return 1;
 }
 
-/* Format double — integer if no fractional part, else %g */
 static void fmt_num(char *out, int out_size, double v) {
     long long iv = (long long)v;
     if ((double)iv == v)
@@ -82,8 +82,13 @@ static void fmt_num(char *out, int out_size, double v) {
         snprintf(out, out_size, "%g", v);
 }
 
+/* truth value of a string result — also used in eval for AND/OR */
+static int is_truthy(const char *s) {
+    return (s && strlen(s) > 0 && strcmp(s, "0") != 0);
+}
+
 /* ─────────────────────────────────────────────────────────────────
-   FUNCTION CALL HELPER  (used for CALL_EXPR nodes)
+   FUNCTION CALL HELPER
    ───────────────────────────────────────────────────────────────── */
 static void call_function(const char *fname,
                           Node **call_args, int call_argc,
@@ -98,13 +103,11 @@ static void call_function(const char *fname,
         return;
     }
 
-    /* save scope */
     int  saved_vc  = g_var_count;
     int  saved_ret = g_has_return;
     char saved_rv[MAX_STR];
     strncpy(saved_rv, g_return_val, MAX_STR-1);
 
-    /* bind arguments to parameters */
     for (int j = 0; j < fn->param_count; j++) {
         char val[MAX_STR] = {0};
         if (j < call_argc && call_args[j])
@@ -124,14 +127,13 @@ static void call_function(const char *fname,
 
     strncpy(out, g_return_val, out_size-1);
 
-    /* restore scope */
     g_var_count  = saved_vc;
     g_has_return = saved_ret;
     strncpy(g_return_val, saved_rv, MAX_STR-1);
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   eval — main evaluator
+   eval
    ───────────────────────────────────────────────────────────────── */
 void eval(Node *n, char *out, int out_size) {
     if (!n || !out) return;
@@ -139,14 +141,11 @@ void eval(Node *n, char *out, int out_size) {
 
     switch (n->kind) {
 
-    /* ── literal value ── */
     case NODE_VAL:
         strncpy(out, n->value, out_size-1);
         return;
 
-    /* ── variable lookup (also checks constants) ── */
     case NODE_VAR: {
-        /* check constants first (fix values are immutable) */
         Constant *c = find_const(n->name);
         if (c) { strncpy(out, c->value, out_size-1); return; }
 
@@ -156,7 +155,6 @@ void eval(Node *n, char *out, int out_size) {
             return;
         }
         if (v->is_array) {
-            /* print all elements space-separated when used without index */
             int rem = out_size - 1;
             for (int i = 0; i < v->arr_len && rem > 0; i++) {
                 strncat(out, v->arr[i], rem);
@@ -169,7 +167,6 @@ void eval(Node *n, char *out, int out_size) {
         return;
     }
 
-    /* ── array index: name[i] ── */
     case NODE_VAR_IDX: {
         Variable *v = find_var(n->name);
         if (!v || !v->is_array) {
@@ -188,12 +185,90 @@ void eval(Node *n, char *out, int out_size) {
         return;
     }
 
-    /* ── string concatenation: left and right ── */
+    /* ── string concat ── */
     case NODE_CONCAT: {
         char l[MAX_STR]={0}, r[MAX_STR]={0};
         eval(n->left,  l, MAX_STR);
         eval(n->right, r, MAX_STR);
-        snprintf(out, out_size, "%s%s", l, r);
+        strncpy(out, l, out_size-1);
+        strncat(out, r, out_size-1-strlen(out));
+        return;
+    }
+
+    /* ── logical AND: both sides must be truthy ── */
+    case NODE_AND: {
+        char l[MAX_STR]={0};
+        eval(n->left, l, MAX_STR);
+        if (!is_truthy(l)) { strncpy(out, "0", out_size-1); return; }
+        char r[MAX_STR]={0};
+        eval(n->right, r, MAX_STR);
+        strncpy(out, is_truthy(r) ? "1" : "0", out_size-1);
+        return;
+    }
+
+    /* ── logical OR: at least one side truthy ── */
+    case NODE_OR: {
+        char l[MAX_STR]={0};
+        eval(n->left, l, MAX_STR);
+        if (is_truthy(l)) { strncpy(out, "1", out_size-1); return; }
+        char r[MAX_STR]={0};
+        eval(n->right, r, MAX_STR);
+        strncpy(out, is_truthy(r) ? "1" : "0", out_size-1);
+        return;
+    }
+
+    /* ── contains ── */
+    case NODE_CONTAINS: {
+        char haystack[MAX_STR]={0}, needle[MAX_STR]={0};
+        eval(n->left,  haystack, MAX_STR);
+        eval(n->right, needle,   MAX_STR);
+        strncpy(out, strstr(haystack, needle) ? "1" : "0", out_size-1);
+        return;
+    }
+
+    /* ── length of x ── */
+    case NODE_LENGTH: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        snprintf(out, out_size, "%d", (int)strlen(val));
+        return;
+    }
+
+    /* ── upper of x ── */
+    case NODE_UPPER: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        for (int i = 0; val[i]; i++)
+            val[i] = (char)toupper((unsigned char)val[i]);
+        strncpy(out, val, out_size-1);
+        return;
+    }
+
+    /* ── lower of x ── */
+    case NODE_LOWER: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        for (int i = 0; val[i]; i++)
+            val[i] = (char)tolower((unsigned char)val[i]);
+        strncpy(out, val, out_size-1);
+        return;
+    }
+
+    /* ── abs of x ── */
+    case NODE_ABS: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        double v = atof(val);
+        fmt_num(out, out_size, fabs(v));
+        return;
+    }
+
+    /* ── round of x ── */
+    case NODE_ROUND: {
+        char val[MAX_STR]={0};
+        eval(n->left, val, MAX_STR);
+        double v = atof(val);
+        fmt_num(out, out_size, round(v));
         return;
     }
 
@@ -202,18 +277,19 @@ void eval(Node *n, char *out, int out_size) {
     case NODE_SUB_EXPR:
     case NODE_MUL_EXPR:
     case NODE_DIV_EXPR:
-    case NODE_MOD_EXPR: {
+    case NODE_MOD_EXPR:
+    case NODE_POW_EXPR: {
         char l[MAX_STR]={0}, r[MAX_STR]={0};
         eval(n->left,  l, MAX_STR);
         eval(n->right, r, MAX_STR);
 
         if (is_number(l) && is_number(r)) {
-            double a = atof(l), b = atof(r);
-            double res = 0;
+            double a = atof(l), b = atof(r), res = 0;
             switch (n->kind) {
                 case NODE_ADD_EXPR: res = a + b; break;
                 case NODE_SUB_EXPR: res = a - b; break;
                 case NODE_MUL_EXPR: res = a * b; break;
+                case NODE_POW_EXPR: res = pow(a, b); break;
                 case NODE_MOD_EXPR:
                     if ((long long)b == 0) {
                         fprintf(stderr, "NAT error: modulo by zero\n");
@@ -221,7 +297,7 @@ void eval(Node *n, char *out, int out_size) {
                     }
                     res = (double)((long long)a % (long long)b);
                     break;
-                default: /* NODE_DIV_EXPR */
+                default: /* DIV */
                     if (b == 0.0) {
                         fprintf(stderr, "NAT error: division by zero\n");
                         strncpy(out, "0", out_size-1); return;
@@ -231,16 +307,18 @@ void eval(Node *n, char *out, int out_size) {
             }
             fmt_num(out, out_size, res);
         } else {
-            /* string + string falls back to concatenation */
-            if (n->kind == NODE_ADD_EXPR)
-                snprintf(out, out_size, "%s%s", l, r);
-            else
+            /* string + string → concat */
+            if (n->kind == NODE_ADD_EXPR) {
                 strncpy(out, l, out_size-1);
+                strncat(out, r, out_size-1-strlen(out));
+            } else {
+                strncpy(out, l, out_size-1);
+            }
         }
         return;
     }
 
-    /* ── comparisons → "1" or "0" ── */
+    /* ── comparisons ── */
     case NODE_CMP_EQ:
     case NODE_CMP_NEQ:
     case NODE_CMP_GT:
@@ -276,7 +354,6 @@ void eval(Node *n, char *out, int out_size) {
         return;
     }
 
-    /* ── function call inside expression ── */
     case NODE_CALL_EXPR:
         call_function(n->name, n->args, n->arg_count, out, out_size);
         return;
