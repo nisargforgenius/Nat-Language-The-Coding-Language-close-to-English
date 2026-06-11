@@ -1,4 +1,4 @@
-# NAT Language v3.6.1
+# NAT (Natural Abstract Tree) Language v3.6.1
 
 A simple, English-style compiled programming language written in pure C.
 Designed to read like natural English — no symbols where words will do.
