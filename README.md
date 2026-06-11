@@ -80,8 +80,8 @@ end.
 
 ### Runtime injection
 ```nat
-let x be 10.
-write x inside "other.nat".
+let x be 10. //this code will set the value of another X i.e a different file.nat X value to 10
+write x inside "other.nat". // this if executed will give output 10 
 // other.nat runs with x = 10, file on disk unchanged
 ```
 
