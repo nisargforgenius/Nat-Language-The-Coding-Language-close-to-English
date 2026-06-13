@@ -1,0 +1,182 @@
+// ═══════════════════════════════════════════════════════════
+//  hello.nat — NAT Language v3.6 Complete Showcase
+// ═══════════════════════════════════════════════════════════
+
+// ── 1. Variables ──────────────────────────────────────────
+let x    be 5.
+let y    be 10.
+let pi   be 3.14.
+let name be "Nisarg".
+
+show x + y.
+show pi * 2.
+show "My name is " and name.
+
+// ── 2. Constants (fix) ───────────────────────────────────
+fix MAX be 100.
+fix GREETING be "Welcome".
+fix VERSION be 3.6.
+
+show MAX.
+show GREETING.
+show "NAT version " and VERSION.
+
+// ── 3. String concatenation (and) ─────────────────────────
+show "Hello " and name and ", you rock!".
+
+// ── 4. Math  + - * / % ^ ───────────────────────────────────
+show x + y.
+show y - x.
+show x * y.
+show y / x.
+show y % 3.
+show (x + y) * 2.
+show x ^ 2.
+
+// ── 5. Functions ────────────────────────────────────────────
+make greet with person inside:
+    show "Hello " and person and "!".
+end.
+
+greet("World").
+greet(name).
+
+make square with n inside:
+    give n * n.
+end.
+
+show square(7).
+
+make add with a b inside:
+    give a + b.
+end.
+
+show add(5, 10).
+show square(add(3, 4)).
+
+// ── 6. = assignment ─────────────────────────────────────────
+let total be x + y.
+show total.
+
+let answer be 1000 + 337.
+show answer.
+
+total = total + 1.
+show total.
+
+// ── 7. For loop (inclusive: 1 to 5 prints 1 2 3 4 5) ────────
+repeat i from 1 to 5:
+    show i.
+end.
+
+// ── 8. Step-2 loop ───────────────────────────────────────────
+repeat i from 0 to 10 step 2:
+    show i.
+end.
+
+// ── 9. Repeat N times ─────────────────────────────────────────
+repeat 3 times:
+    show "NAT!".
+end.
+
+let rounds be 4.
+repeat rounds times:
+    show "round".
+end.
+
+// ── 10. While loop ────────────────────────────────────────────
+let count be 1.
+while count <= 5:
+    show count.
+    count = count + 1.
+end.
+
+// ── 11. If / else ──────────────────────────────────────────────
+let score be 85.
+if score >= 90:
+    show "Grade A".
+else:
+    if score >= 80:
+        show "Grade B".
+    else:
+        show "Grade C".
+    end.
+end.
+
+// ── 12. Comparisons ───────────────────────────────────────────
+let val be 7.
+if val is greater than 5:
+    show "val > 5".
+end.
+if val is less than 10:
+    show "val < 10".
+end.
+if not val == 0:
+    show "val is non-zero".
+end.
+if val is between 1 and 10:
+    show "val is in range".
+end.
+
+// ── 13. Arrays ─────────────────────────────────────────────────
+let nums are 10 20 30 40 50.
+show nums[0].
+show nums[4].
+show first of nums.
+show last of nums.
+show count of nums.
+
+// ── 14. fix in loop bounds ─────────────────────────────────────
+fix START be 1.
+fix END be 5.
+repeat i from START to END:
+    show i.
+end.
+
+// ── 15. Recursive functions ─────────────────────────────────────
+make fact with n inside:
+    if n < 2:
+        give 1.
+    end.
+    give n * fact(n - 1).
+end.
+
+show fact(7).
+
+make fib with n inside:
+    if n < 2:
+        give n.
+    end.
+    give fib(n - 1) + fib(n - 2).
+end.
+
+show fib(10).
+
+// ── 16. Nested loops ──────────────────────────────────────────
+repeat i from 1 to 3:
+    repeat j from 1 to 3:
+        show i * j.
+    end.
+end.
+
+// ── 17. Float numbers ────────────────────────────────────────
+let r be 5.
+fix PI_APPROX be 3.14159.
+show PI_APPROX * r * r.
+
+// ── 18. Standard library — math.tree ────────────────────────
+use math.tree
+show sqrt(144).
+show pow(2, 10).
+
+// ── 19. each loop ──────────────────────────────────────────────
+let fruits are "apple" "mango" "banana".
+each item in fruits:
+    show item.
+end.
+
+// ── 20. File I/O ──────────────────────────────────────────────
+write "Hello from NAT" to "demo.txt".
+append "Second line" to "demo.txt".
+read "demo.txt".
+delete file "demo.txt".
