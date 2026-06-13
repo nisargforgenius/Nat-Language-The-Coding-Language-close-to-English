@@ -228,6 +228,20 @@ static Node *parse_compare(void) {
     /* English-style: "is greater than", "is less than", "is not", "is number", "is text", "is" */
     if (tok_is(T_IS)) {
         tok_consume();
+        /* "is between A and B" */
+        if (tok_is(T_BETWEEN)) {
+            tok_consume(); /* between */
+            Node *lo = parse_additive();
+            if (tok_is(T_AND)) tok_consume();
+            Node *hi = parse_additive();
+            Node *left2 = node_new(left->kind);
+            strncpy(left2->name,  left->name,  63);
+            strncpy(left2->value, left->value, MAX_STR-1);
+            Node *clo = node_new(NODE_CMP_GTE); clo->left = left;  clo->right = lo;
+            Node *chi = node_new(NODE_CMP_LTE); chi->left = left2; chi->right = hi;
+            Node *n   = node_new(NODE_AND);     n->left   = clo;   n->right   = chi;
+            return n;
+        }
         /* type checks */
         if (tok_is("NUMBER_T")) {
             tok_consume();
@@ -748,13 +762,13 @@ static Node *parse_factor(void) {
         return n;
     }
 
-    /* random from A to B — expression style: let n be random from 1 to 10. */
+    /* random from A to B  /  random between A and B — expression style */
     if (tok_is("RANDOM")) {
         tok_consume();
         Node *n = node_new(NODE_RANDOM);
-        if (tok_is(T_FROM)) tok_consume();
+        if (tok_is(T_FROM) || tok_is(T_BETWEEN)) tok_consume();
         n->left  = parse_factor();
-        if (tok_is(T_TO)) tok_consume();
+        if (tok_is(T_TO) || tok_is(T_AND)) tok_consume();
         n->right = parse_factor();
         n->param_count = 0;
         return n;
@@ -1481,9 +1495,9 @@ static Node *parse_use_stmt(void) {
 static Node *parse_random_stmt(void) {
     tok_consume(); /* random */
     Node *n = node_new(NODE_RANDOM);
-    if (tok_is(T_FROM)) tok_consume();
+    if (tok_is(T_FROM) || tok_is(T_BETWEEN)) tok_consume();
     n->left  = parse_factor();   /* lo */
-    if (tok_is(T_TO)) tok_consume();
+    if (tok_is(T_TO) || tok_is(T_AND)) tok_consume();
     n->right = parse_factor();   /* hi */
     /* for x y z */
     if (tok_is(T_FOR)) tok_consume();

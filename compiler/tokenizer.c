@@ -57,6 +57,7 @@ static const KW keywords[] = {
     /* string/math builtins */
     {"in",       T_IN      },
     {"middle",   T_MIDDLE  },
+    {"between",  T_BETWEEN },
     {"of",       T_OF      },
     {"length",   T_LENGTH  },
     {"upper",    T_UPPER   },

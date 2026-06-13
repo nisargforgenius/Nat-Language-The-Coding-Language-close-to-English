@@ -1,0 +1,254 @@
+// ═══════════════════════════════════════════════════
+//   NAT v3.6.2 — NEW SYNTAX REGRESSION TEST
+// ═══════════════════════════════════════════════════
+
+show "=== 1. Variables & assignment (be, =, multi-decl) ===".
+let x be 10.
+let y be 20.
+let sum, diff, prod.
+sum = x + y.
+diff = x - y.
+prod be x * y.
+show sum.
+show diff.
+show prod.
+
+show "=== 2. Multiple declaration default 0 ===".
+let a, b, c.
+show a.
+show b.
+show c.
+
+show "=== 3. Math operators ===".
+show 10 + 3.
+show 10 - 3.
+show 10 * 3.
+show 10 / 4.
+show 10 % 3.
+show 2 ^ 8.
+
+show "=== 4. String concat ===".
+let name be "NAT".
+show "Hello, " and name and "!".
+
+show "=== 5. Comparisons (English) ===".
+if x is greater than 5:
+    show "x > 5: yes".
+end.
+if x is less than 5:
+    show "ERROR: should not print".
+else:
+    show "x < 5: no (correct)".
+end.
+show x in middle of 1 and 20.
+if x is not 0:
+    show "x is not 0: yes".
+end.
+
+show "=== 6. If / else if / else ===".
+let score be 75.
+if score > 90:
+    show "grade: A".
+else if score > 70:
+    show "grade: B".
+else:
+    show "grade: C".
+end.
+
+show "=== 7. While loop ===".
+let i be 0.
+while i < 5:
+    show i.
+    i be i + 1.
+end.
+
+show "=== 8. For loop (inclusive) ===".
+repeat j from 1 to 5:
+    show j.
+end.
+
+show "=== 9. Repeat N times ===".
+repeat 3 times:
+    show "tick".
+end.
+
+show "=== 10. Step loops ===".
+repeat k from 0 to 10 step 2:
+    show k.
+end.
+
+show "=== 11. Functions + give ===".
+make addnum with p q inside:
+    give p + q.
+end.
+show addnum(5, 7).
+
+show "=== 12. Recursive function ===".
+make fib with n inside:
+    if n < 2:
+        give n.
+    end.
+    give fib(n - 1) + fib(n - 2).
+end.
+show fib(10).
+
+show "=== 13. Bare function call auto-print ===".
+make square with n inside:
+    give n * n.
+end.
+square(6).
+
+show "=== 14. Constants (fix) ===".
+fix MAXV be 100.
+show MAXV.
+
+show "=== 15. Arrays ===".
+let fruits are "apple" "mango" "banana".
+show fruits[0].
+show fruits[1].
+show fruits[2].
+show first of fruits.
+show last of fruits.
+show length of fruits.
+
+show "=== 16. Each loop (array) ===".
+each item in fruits:
+    show item.
+end.
+
+show "=== 17. Each loop (string chars) ===".
+let word be "abc".
+each ch in word:
+    show ch.
+end.
+
+show "=== 18. String builtins ===".
+let padded be "  hello  ".
+show trim of padded.
+show upper of padded.
+show lower of padded.
+show length of padded.
+
+show "=== 19. Math builtins (abs/round/floor/ceil of) ===".
+show abs of -7.
+show round of 3.7.
+show floor of 3.9.
+show ceil of 3.1.
+
+show "=== 20. Type checking (is number / is text) ===".
+if 42 is number:
+    show "42 is number: yes".
+end.
+if "hi" is text:
+    show "hi is text: yes".
+end.
+
+show "=== 21. Clamp (from...to) ===".
+show clamp 150 from 0 to 100.
+show clamp -10 from 0 to 100.
+
+show "=== 22. Split ===".
+let parts be split "a,b,c" by ",".
+each p in parts:
+    show p.
+end.
+
+show "=== 23. newline / skip aliases ===".
+show "before newline".
+newline.
+show "after newline".
+skip.
+show "after skip".
+
+show "=== 24. Module system (math.tree) ===".
+use math.tree
+show sqrt(81).
+show factorial(5).
+show gcd(12, 18).
+
+show "=== 25. Module system (geometry.tree) ===".
+use geometry.tree
+show area_rect(4, 5).
+area_rect(2, 5).
+
+show "=== 26. Module system (string.tree) ===".
+use string.tree
+show title_of("hello world").
+show word_count("the quick brown fox").
+
+show "=== 27. Module system (convert.tree) ===".
+use convert.tree
+show cel_to_fahr(100).
+show km_to_m(5).
+
+show "=== 28. File I/O — write/read/append ===".
+write "line one" to "rtest.txt".
+append "line two" to "rtest.txt".
+append "line three" to "rtest.txt".
+read "rtest.txt".
+
+show "=== 29. File I/O — write at line ===".
+write "REPLACED" to "rtest.txt" at line 2.
+read "rtest.txt".
+
+show "=== 30. File I/O — insert ===".
+insert "INSERTED" to "rtest.txt" at line 1.
+read "rtest.txt".
+
+show "=== 31. File I/O — remove line ===".
+remove line 2 from "rtest.txt".
+read "rtest.txt".
+
+show "=== 32. File I/O — read at line ===".
+let r1 be read "rtest.txt" at line 1.
+show r1.
+
+show "=== 33. File exists check ===".
+if file "rtest.txt" exists:
+    show "rtest.txt exists: yes".
+end.
+if file "ghost_v362.txt" exists:
+    show "ERROR: should not exist".
+else:
+    show "ghost file: correctly absent".
+end.
+
+show "=== 34. Each line in file ===".
+each ln in file "rtest.txt":
+    show ">> " and ln.
+end.
+
+show "=== 35. Delete file ===".
+delete file "rtest.txt".
+if file "rtest.txt" exists:
+    show "ERROR: not deleted".
+else:
+    show "rtest.txt deleted: confirmed".
+end.
+
+show "=== 36. Runtime injection (write inside) ===".
+let inj_x be 999.
+write inj_x inside "inject_target.nat".
+show "injection registered (no file written)".
+
+show "=== 37. Comments — all styles ===".
+// line comment
+# hash comment
+/* block comment */
+show "comments did not break execution".
+
+/*
+multi line
+block comment
+*/
+show "multiline block comment did not break execution".
+
+show "=== 38. Create graph (file output) ===".
+create graph "Test Graph":
+    type bar.
+    label "A" value 1.
+    label "B" value 2.
+end.
+show "graph created".
+
+show "=== ALL NEW SYNTAX TESTS COMPLETE ===".

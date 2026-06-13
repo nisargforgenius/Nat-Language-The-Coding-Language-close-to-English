@@ -1,0 +1,62 @@
+=== 1. Mixed-type array (numbers and strings) ===
+10
+hello
+20
+world
+=== 2. Dynamic retyping (number -> string) ===
+15
+done
+=== 3. Dynamic retyping (string -> number) ===
+start
+100
+=== 4. String + number concatenation via 'and' ===
+Score: 95
+95 points
+=== 5. Number stored then used in string context ===
+Value is 42!
+=== 6. is_number / is_text on retyped variable ===
+z is number: yes
+z is text now: yes
+=== 7. File read returns 'stringy numbers' ===
+42
+43
+=== 8. Comparison: number vs numeric string ===
+10 == "10": true
+=== 9. Comparison: number vs number (no quotes) ===
+10 == 10: true
+=== 10. Arithmetic on split() results (strings from split) ===
+11
+21
+31
+=== 11. Concatenating two numbers with 'and' (not adding) ===
+510
+15
+=== 12. Negative numbers and decimals ===
+-5
+3.14
+-1.86
+5
+=== 13. Zero and falsy checks ===
+zero is 0: true
+not zero: true (0 is falsy)
+=== 14. Empty string vs zero ===
+empty string shown: []
+=== 15. Large numbers ===
+1000000
+2000000
+1000000.5
+=== 16. Function returning number vs string conditionally ===
+42
+none
+=== 17. Array length after type mix ===
+4
+=== 18. Reassigning array element ===
+1
+=== 19. Constant (fix) with decimal ===
+0.5
+50
+=== 20. Whole-number division displays without decimal ===
+5
+3.333333333
+3
+=== ALL TYPE COERCION TESTS COMPLETE ===

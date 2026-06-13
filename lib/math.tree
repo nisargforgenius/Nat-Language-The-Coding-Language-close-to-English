@@ -7,6 +7,15 @@ fix PI  3.141592653589793.
 fix TAU 6.283185307179586.
 fix E   2.718281828459045.
 
+# ── pow (integer exponent) ───────────────────────────────
+make pow with base exp inside:
+    let result be 1.
+    repeat k from 1 to exp:
+        result = result * base.
+    end.
+    give result.
+end.
+
 # ── sqrt (Newton's method) ───────────────────────────────
 make sqrt with n inside:
     if n == 0:

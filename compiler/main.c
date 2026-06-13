@@ -83,12 +83,17 @@ void pre_pass_fix(void) {
         Constant *c = &g_consts[g_const_count++];
         strncpy(c->name,  g_tokens[1].value, 63);
 
-        /* value = everything from token[2] onwards, joined with spaces */
+        /* value = everything from token[2] onwards, joined with spaces.
+           skip an optional 'be' keyword: fix PI be 3.14159. */
+        int start = 2;
+        if (start < g_tok_count && strcmp(g_tokens[start].type, T_BE) == 0)
+            start++;
+
         char val[MAX_STR] = {0};
-        for (int j = 2; j < g_tok_count; j++) {
+        for (int j = start; j < g_tok_count; j++) {
             /* skip statement-terminator dot */
             if (strcmp(g_tokens[j].type, T_DOT) == 0) break;
-            if (j > 2) strncat(val, " ", MAX_STR - (int)strlen(val) - 1);
+            if (j > start) strncat(val, " ", MAX_STR - (int)strlen(val) - 1);
             strncat(val, g_tokens[j].value, MAX_STR - (int)strlen(val) - 1);
         }
         strncpy(c->value, val, MAX_STR-1);
@@ -100,18 +105,27 @@ void pre_pass_fix(void) {
    ───────────────────────────────────────────────────────────────── */
 static void print_usage(const char *prog) {
     fprintf(stderr,
-        "NAT Language Interpreter v3.4\n"
+        "NAT Language Compiler v3.6.3\n"
+        "Founder: Nisarg | Co-Founder: Claude Sonnet\n"
+        "\n"
         "Usage: %s <script.nat>\n"
         "\n"
         "Quick syntax:\n"
-        "  let x be num(42).\n"
-        "  let name be Nisarg.\n"
-        "  fix PI 3.14\n"
-        "  show(x).\n"
-        "  show(\"Hello \" and name).\n"
-        "  add x with 10 to x.\n"
-        "  repeat i from 1 to 10 step 1:\n"
-        "      show(i).\n"
+        "  let x be 42.\n"
+        "  let name be \"Nisarg\".\n"
+        "  fix PI be 3.14.\n"
+        "  show x.\n"
+        "  show \"Hello \" and name.\n"
+        "  x = x + 10.\n"
+        "  repeat i from 1 to 10:\n"
+        "      show i.\n"
+        "  end.\n"
+        "\n"
+        "File I/O:\n"
+        "  write \"text\" to \"file.txt\".\n"
+        "  read \"file.txt\".\n"
+        "  each line in file \"file.txt\":\n"
+        "      show line.\n"
         "  end.\n",
         prog);
 }

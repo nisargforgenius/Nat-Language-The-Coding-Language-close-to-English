@@ -336,6 +336,7 @@ void execute(Node *n) {
                 strncpy(g_vars[g_var_count].name,  fn->params[j], 63);
                 strncpy(g_vars[g_var_count].value, val,           MAX_STR-1);
                 g_vars[g_var_count].is_array = 0;
+                cache_numeric(&g_vars[g_var_count], val);
                 g_var_count++;
             }
         }
@@ -397,10 +398,12 @@ void execute(Node *n) {
             Variable *lv = find_var(n->name);
             if (lv) {
                 strncpy(lv->value, tmp, MAX_STR-1);
+                cache_numeric(lv, tmp);
             } else if (g_var_count < MAX_VARS) {
                 strncpy(g_vars[g_var_count].name,  n->name, 63);
                 strncpy(g_vars[g_var_count].value, tmp,     MAX_STR-1);
                 g_vars[g_var_count].is_array = 0;
+                cache_numeric(&g_vars[g_var_count], tmp);
                 g_var_count++;
             }
             execute_block(n->body_start, n->body_end);
@@ -907,7 +910,7 @@ void execute(Node *n) {
 "</head>\n"
 "<body>\n"
 "<h1>%s</h1>\n"
-"<div class=\"badge\">%s graph &nbsp;|&nbsp; NAT v3.5</div>\n"
+"<div class=\"badge\">%s graph &nbsp;|&nbsp; NAT v3.6.3</div>\n"
 "<canvas id=\"c\"></canvas>\n"
 "<script>\n"
 "const canvas = document.getElementById('c');\n"
