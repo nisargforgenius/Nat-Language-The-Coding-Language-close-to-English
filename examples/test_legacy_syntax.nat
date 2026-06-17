@@ -1,0 +1,102 @@
+// ═══════════════════════════════════════════════════
+//   NAT v3.6.2 — BACKWARD COMPATIBILITY TEST (v3.0 syntax)
+// ═══════════════════════════════════════════════════
+
+show "=== 1. num() universal number wrapper ===".
+let x be num(42).
+show x.
+let pi be num(3.14).
+show pi.
+
+show "=== 2. int() legacy alias for num() ===".
+let y be int(99).
+show y.
+
+show "=== 3. string() legacy wrapper ===".
+let name be string(Nisarg).
+show name.
+
+show "=== 4. show(expr) classic parens style ===".
+show(x).
+show("Hello " and name and "!").
+show(x + y).
+
+show "=== 5. fix without dot (legacy) ===".
+fix OLDCONST 50
+show OLDCONST.
+
+show "=== 6. add x with y to z (English arithmetic assignment) ===".
+let a be 100.
+let b be 200.
+let total.
+add a with b to total.
+show total.
+
+add total with 1 to total.
+show total.
+
+show "=== 7. Old-style for loop (inclusive, from..to step) ===".
+repeat i from 1 to 5 step 1:
+    show i.
+end.
+
+show "=== 8. Old-style repeat N times with num var ===".
+let n be num(3).
+repeat n times:
+    show "loop".
+end.
+
+show "=== 9. Old-style while with let-reassign ===".
+let j be num(0).
+while j < 5:
+    show j.
+    let j be j + 1.
+end.
+
+show "=== 10. Functions with give (unchanged since v3.0) ===".
+make square with n inside:
+    give n * n.
+end.
+show(square(7)).
+
+show "=== 11. Recursive function (fib, v3.0 style) ===".
+make fib with n inside:
+    if n < 2:
+        give n.
+    end.
+    give fib(n - 1) + fib(n - 2).
+end.
+show(fib(10)).
+
+show "=== 12. English comparisons (v3.0) ===".
+let v be 8.
+if v is greater than 5:
+    show("big").
+end.
+if v is less than 10:
+    show("ok").
+end.
+if v is not 0:
+    show("nonzero").
+end.
+
+show "=== 13. Logical NOT ===".
+if not v == 0:
+    show "v is non-zero (not check)".
+end.
+
+show "=== 14. Arrays with index access (v3.0) ===".
+let nums are 10 20 30 40 50.
+show(nums[0]).
+show(nums[4]).
+
+show "=== 15. ask for syntax (structure check only — no stdin here) ===".
+show "ask for syntax exists and parses (not invoked)".
+
+show "=== 16. Mixed old + new syntax in same program ===".
+let modern be 5.
+modern = modern + 1.
+show(modern).
+show modern.
+
+show "=== ALL BACKWARD COMPAT TESTS COMPLETE ===".

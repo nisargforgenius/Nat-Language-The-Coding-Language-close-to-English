@@ -228,6 +228,20 @@ static Node *parse_compare(void) {
     /* English-style: "is greater than", "is less than", "is not", "is number", "is text", "is" */
     if (tok_is(T_IS)) {
         tok_consume();
+        /* "is between A and B" */
+        if (tok_is(T_BETWEEN)) {
+            tok_consume(); /* between */
+            Node *lo = parse_additive();
+            if (tok_is(T_AND)) tok_consume();
+            Node *hi = parse_additive();
+            Node *left2 = node_new(left->kind);
+            strncpy(left2->name,  left->name,  63);
+            strncpy(left2->value, left->value, MAX_STR-1);
+            Node *clo = node_new(NODE_CMP_GTE); clo->left = left;  clo->right = lo;
+            Node *chi = node_new(NODE_CMP_LTE); chi->left = left2; chi->right = hi;
+            Node *n   = node_new(NODE_AND);     n->left   = clo;   n->right   = chi;
+            return n;
+        }
         /* type checks */
         if (tok_is("NUMBER_T")) {
             tok_consume();
@@ -479,6 +493,28 @@ static Node *parse_unary(void) {
         n->left = parse_factor();
         return n;
     }
+
+    /* larger(a,b,c) / larger of a,b,c / larger a,b,c
+       smallest(a,b,c) / smallest of a,b,c / smallest a,b,c */
+    if (tok_is(T_LARGER) || tok_is(T_SMALLEST)) {
+        NodeType kind = tok_is(T_LARGER) ? NODE_LARGER : NODE_SMALLEST;
+        tok_consume(); /* larger / smallest */
+        if (tok_is(T_OF)) tok_consume(); /* optional 'of' */
+        Node *n = node_new(kind);
+        n->arg_count = 0;
+        /* handle both (a,b,c) and bare a,b,c */
+        int has_paren = tok_is(T_LPAREN);
+        if (has_paren) tok_consume();
+        while (g_tok_pos < g_tok_count &&
+               !tok_is(T_DOT) && !tok_is(T_AND) &&
+               !(has_paren && tok_is(T_RPAREN))) {
+            if (tok_is(T_COMMA)) { tok_consume(); continue; }
+            if (n->arg_count >= MAX_ARGS) { tok_consume(); continue; }
+            n->args[n->arg_count++] = parse_additive();
+        }
+        if (has_paren && tok_is(T_RPAREN)) tok_consume();
+        return n;
+    }
     /* round of x */
     if (tok_is(T_ROUND) && tok_peek(T_OF, 1)) {
         tok_consume();
@@ -598,7 +634,8 @@ static Node *parse_unary(void) {
 
     /* keyword used as variable name fallback */
     if (tok_is(T_LENGTH) || tok_is(T_UPPER) || tok_is(T_LOWER) ||
-        tok_is(T_ABS)    || tok_is(T_ROUND)) {
+        tok_is(T_ABS)    || tok_is(T_ROUND) ||
+        tok_is(T_LARGER) || tok_is(T_SMALLEST)) {
         Node *n = node_new(NODE_VAR);
         strncpy(n->name, tok_cur()->value, 63);
         tok_consume();
@@ -748,13 +785,13 @@ static Node *parse_factor(void) {
         return n;
     }
 
-    /* random from A to B — expression style: let n be random from 1 to 10. */
+    /* random from A to B  /  random between A and B — expression style */
     if (tok_is("RANDOM")) {
         tok_consume();
         Node *n = node_new(NODE_RANDOM);
-        if (tok_is(T_FROM)) tok_consume();
+        if (tok_is(T_FROM) || tok_is(T_BETWEEN)) tok_consume();
         n->left  = parse_factor();
-        if (tok_is(T_TO)) tok_consume();
+        if (tok_is(T_TO) || tok_is(T_AND)) tok_consume();
         n->right = parse_factor();
         n->param_count = 0;
         return n;
@@ -808,8 +845,8 @@ static Node *parse_factor(void) {
             }
             if (tok_is(T_RPAREN)) tok_consume();
             return n;
-        }
     }
+}
 
     /* keyword used as function name */
     if (!tok_is(T_IDENT) && tok_peek(T_LPAREN, 1) &&
@@ -1034,16 +1071,35 @@ static Node *parse_show(void) {
         return n;
     }
 
-    /* check if current token is a known function name for English-style call */
-    if (g_tok_pos < g_tok_count) {
-        int is_func = 0;
-        for (int _fi = 0; _fi < g_func_count; _fi++)
-            if (strcmp(g_funcs[_fi].name, g_tokens[g_tok_pos].value) == 0)
-                { is_func = 1; break; }
+    /* English-style bracket-less call: show funcname arg1, arg2.
+       Catches: pure IDENTs, AND keywords that are user-defined function names
+       (e.g. make add — 'add' is T_ADD keyword but user named their func 'add'). */
+    if (g_tok_pos < g_tok_count &&
+        !tok_peek(T_LPAREN, 1) &&
+        !tok_peek(T_DOT,    1) &&
+        !tok_peek(T_COLON,  1) &&
+        (g_tok_pos + 1 < g_tok_count)) {
 
-        if (is_func && (g_tok_pos + 1 < g_tok_count) &&
-            !tok_peek(T_DOT, 1) && !tok_peek(T_COLON, 1) &&
-            !tok_peek(T_LPAREN, 1)) {
+        /* is current token a known function name (any token type) */
+        int is_known = 0;
+        for (int _fi = 0; _fi < g_func_count; _fi++)
+            if (strcmp(g_funcs[_fi].name, tok_cur()->value) == 0)
+                { is_known = 1; break; }
+
+        /* OR: it's a plain IDENT with args following
+           (tree funcs not yet in g_funcs at parse time) */
+        int is_ident = (strcmp(tok_cur()->type, T_IDENT) == 0);
+        const char *nty = g_tokens[g_tok_pos+1].type;
+        /* next token must look like a value — NOT an operator.
+           This prevents "show x * y" treating x as a no-bracket func call. */
+        int looks_like_args = (strcmp(nty, T_NUMBER) == 0 ||
+                               strcmp(nty, T_STRING) == 0 ||
+                               strcmp(nty, T_LPAREN) == 0);
+        /* IDENT is ok as arg only if it's a known function or variable,
+           but we also need negative numbers hence T_MINUS check below.
+           For safety: only allow IDENT arg if current token IS a known func. */
+
+    if (is_known || (is_ident && looks_like_args && (g_tok_pos + 1 < g_tok_count))) {
             Node *call = node_new(NODE_CALL_EXPR);
             strncpy(call->name, tok_cur()->value, 63);
             tok_consume();
@@ -1481,9 +1537,9 @@ static Node *parse_use_stmt(void) {
 static Node *parse_random_stmt(void) {
     tok_consume(); /* random */
     Node *n = node_new(NODE_RANDOM);
-    if (tok_is(T_FROM)) tok_consume();
+    if (tok_is(T_FROM) || tok_is(T_BETWEEN)) tok_consume();
     n->left  = parse_factor();   /* lo */
-    if (tok_is(T_TO)) tok_consume();
+    if (tok_is(T_TO) || tok_is(T_AND)) tok_consume();
     n->right = parse_factor();   /* hi */
     /* for x y z */
     if (tok_is(T_FOR)) tok_consume();

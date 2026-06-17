@@ -1,21 +1,9 @@
 # NAT — Natural Abstract Tree
 
-A simple, English-style compiled programming language written in pure C.
-Designed to read like natural English — no symbols where words will do.
-
-This language was created by Nisarg with the help of Claude Sonnet.
-The earliest versions V1.0 and V2.0 of NAT were written by Nisarg, but they had so many bugs that he had to bring in Claude to make it stable. Claude restructured the code and edited it into a better, stable form.
-
-When Nisarg first started learning to code, he was curious about how a programming language was created — how Dennis Ritchie created C, and why C performs better than other languages. This led him to research compilers and at the mid-semester of his second year (yup, he's a college student), he thought of the idea of creating his own language: simple to understand and fun to write. He built V1.0 and V2.0 — very basic tokenizer and parser, all in one `main.c` file, which didn't allow multi-line code and had broken identifiers. This made him give up on the project — until he realized this is the era of AI. So he uploaded his broken `main.c` to Claude, and to his surprise, it understood the method, the code structure, the ideology, and improved it into separate `parser.c`, `tokenizer.c` and other files. From there the first stable version was born: **v3.0**. Claude also became the coding partner — Nisarg codes, Claude improves it.
-
-We hope the devs will check this project.
-
----
-
 > **Easy coding for developers.**
-> A compiled, English-style language built in C.
+> A simple, English-style compiled language written in C.
 
-NAT lets you write code that reads like plain English — no semicolons, no curly braces, no boilerplate. Write `.nat` files, run them with `nat program.nat`. Clear, friendly errors tell you exactly what went wrong and how to fix it.
+NAT lets you write code that reads like plain English — no semicolons, no curly braces, no boilerplate. It compiles and runs your `.nat` files directly, with clear, friendly error messages that actually tell you what went wrong.
 
 ```nat
 let name be "Nisarg".
@@ -45,15 +33,15 @@ end.
 ## Installation (Windows)
 
 1. Download the latest release zip from [Releases](../../releases)
-2. Extract to `C:\NAT\`
-3. Add `C:\NAT` to your System PATH
-4. Open a terminal anywhere and run:
+2. Extract the folder anywhere (e.g. `C:\NAT\`)
+3. Add the folder to your system PATH
+4. Open a terminal and run:
 
 ```
 nat hello.nat
 ```
 
-> **Linux/Mac:** compile from source — `cd compiler && gcc *.c -o nat -lm`
+> Linux/Mac: compile from source with `gcc *.c -o nat -lm`
 
 ---
 
@@ -83,7 +71,7 @@ make greet with name inside:
     show "Hello, " and name.
 end.
 
-greet "Nisarg".
+greet("Nisarg").
 ```
 
 **Loops:**
@@ -120,7 +108,7 @@ end.
 ```nat
 use math.tree
 show sqrt 144.
-show pow 2, 10.
+show pow(2, 10).
 
 use geometry.tree
 show area_rect 5, 3.
@@ -132,9 +120,9 @@ show area_rect 5, 3.
 
 | File | What's inside |
 |------|--------------|
-| `math.tree` | `sqrt`, `pow`, `factorial`, `log`, `sin`, `cos`, `PI`, `E`, `TAU` and more |
+| `math.tree` | `sqrt`, `pow`, `log`, `sin`, `cos`, `abs`, `floor`, `ceil`, `PI`, `E` and more |
 | `geometry.tree` | Area and perimeter for 2D/3D shapes, coordinate geometry, vectors |
-| `string.tree` | `title_of`, `word_count`, `pad_left`, `starts_with`, `ends_with` and more |
+| `string.tree` | `capitalize`, `count_words`, `pad_left`, `starts_with`, `ends_with` and more |
 | `convert.tree` | km↔miles, °C↔°F, kg↔lbs, radians↔degrees and more |
 
 ---
@@ -142,7 +130,7 @@ show area_rect 5, 3.
 ## Project Structure
 
 ```
-NAT/
+nat-language/
 ├── compiler/       ← source code (C)
 │   ├── main.c
 │   ├── parser.c
@@ -151,12 +139,15 @@ NAT/
 │   ├── tokenizer.c
 │   ├── nat.h
 │   └── errors.h
-├── lib/            ← standard library (.tree files)
+├── tree/           ← standard library (.tree files)
 │   ├── math.tree
 │   ├── geometry.tree
 │   ├── string.tree
 │   └── convert.tree
 ├── examples/       ← example .nat programs
+│   ├── hello.nat
+│   ├── examples.nat
+│   └── ...
 ├── nat.exe         ← Windows binary (latest release)
 └── README.md
 ```
@@ -169,7 +160,7 @@ Requires GCC.
 
 ```bash
 cd compiler
-gcc *.c -o ../nat.exe -lm
+gcc *.c -o nat.exe -lm
 ```
 
 ---
@@ -180,7 +171,7 @@ gcc *.c -o ../nat.exe -lm
 // Variables
 let x be 10.
 let name be "NAT".
-let x, y, z.           // declare multiple — default 0
+let x, y, z.           // declare multiple
 
 // Assignment
 x be 20.
@@ -198,18 +189,12 @@ while x is greater than 0:
     x be x - 1.
 end.
 
-// Functions — brackets optional
+// Functions
 make add with a b inside:
     give a + b.
 end.
 
-show add 3, 4.
-show add(3, 4).
-
-// Min / Max
-show larger(12, 45, 677, 2).      // 677
-show smallest(1, 45, 6, 0.008).   // 0.008
-show larger of 10, 20, 5.         // 20
+let result be add(3, 4).
 
 // Constants
 fix PI be 3.14159.
@@ -240,17 +225,14 @@ end.
 | v3.4 | Standard library — trim, replace, split, math ops, type checking, random |
 | v3.5 | Module system (`.tree` files), `create graph`, `each` loops |
 | v3.6 | File I/O — read, write, append, insert, remove, delete, `each line in file` |
-| v3.7 | No-bracket calls, `larger`/`smallest`, numeric cache (Phase 1), new directory structure |
-| v4.0 | Phase 2 — typed variable storage, performance foundation |
 
 ---
 
 ## Roadmap
 
-- **v4.0 Phase 2** — typed Variable storage (`double` + `string` union, no more `char[]` for numbers)
-- **v4.0 Phase 3** — `nat_runtime` library
-- **v4.0 Phase 4** — `nat build` transpile-to-C via bundled TinyCC (zero external compiler needed)
-- **v4.5** — Object system, reserved keywords
+- **v3.7** — Polish pass, `inline.` statement, Windows installer (.bat)
+- **v4.0** — Object system, direct memory management
+- **v4.5** — Reserved keywords, VM
 
 ---
 
@@ -260,4 +242,4 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-*NAT — Created by Nisarg and Claude, for the devs.*
+*NAT — the guy in the chair. C is Spider-Man, NAT handles the rest.*

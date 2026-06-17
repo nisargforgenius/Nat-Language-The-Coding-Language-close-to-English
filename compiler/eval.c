@@ -15,10 +15,23 @@
 #include "nat.h"
 
 void execute_block(int start, int end);
+static int is_number(const char *s);     /* forward decl — defined later in this file */
+static double eval_num(Node *n);         /* forward decl — defined later in this file */
 
 /* ─────────────────────────────────────────────────────────────────
    VARIABLE HELPERS
    ───────────────────────────────────────────────────────────────── */
+
+/* v4.0 Phase 1a — detect if a string is purely numeric (using the
+   same rules as is_number()) and cache the parsed value. */
+void cache_numeric(Variable *v, const char *value) {
+    if (is_number(value)) {
+        v->is_num    = 1;
+        v->num_value = atof(value);
+    } else {
+        v->is_num = 0;
+    }
+}
 
 Variable *find_var(const char *name) {
     for (int i = g_var_count - 1; i >= 0; i--)
@@ -32,6 +45,7 @@ Variable *set_var(const char *name, const char *value) {
         if (strcmp(g_vars[i].name, name) == 0) {
             strncpy(g_vars[i].value, value, MAX_STR-1);
             g_vars[i].is_array = 0;
+            cache_numeric(&g_vars[i], value);
             return &g_vars[i];
         }
     if (g_var_count >= MAX_VARS) {
@@ -43,6 +57,7 @@ Variable *set_var(const char *name, const char *value) {
     strncpy(v->value, value, MAX_STR-1);
     v->is_array = 0;
     v->arr_len  = 0;
+    cache_numeric(v, value);
     return v;
 }
 
@@ -93,8 +108,11 @@ static void fmt_num(char *out, int out_size, double v) {
     long long iv = (long long)v;
     if ((double)iv == v)
         snprintf(out, out_size, "%lld", iv);
-    else
-        snprintf(out, out_size, "%g", v);
+    else {
+        /* %.10g avoids premature scientific notation on numbers
+           like 1000000.5 while still trimming trailing zeros */
+        snprintf(out, out_size, "%.10g", v);
+    }
 }
 
 /* truth value of a string result — also used in eval for AND/OR */
@@ -142,6 +160,7 @@ static void call_function(const char *fname,
             strncpy(g_vars[g_var_count].name,  fn->params[j], 63);
             strncpy(g_vars[g_var_count].value, val,           MAX_STR-1);
             g_vars[g_var_count].is_array = 0;
+            cache_numeric(&g_vars[g_var_count], val);
             g_var_count++;
         }
     }
@@ -156,6 +175,60 @@ static void call_function(const char *fname,
     g_var_count  = saved_vc;
     g_has_return = saved_ret;
     strncpy(g_return_val, saved_rv, MAX_STR-1);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   eval_num  (v4.0 Phase 1b)
+   Fast numeric evaluator — returns double directly, zero string
+   conversion for the hot arithmetic path.
+   Falls back to eval()+atof() for anything it can't handle directly.
+   ───────────────────────────────────────────────────────────────── */
+static double eval_num(Node *n) {
+    if (!n) return 0.0;
+
+    switch (n->kind) {
+
+    /* literal number */
+    case NODE_VAL:
+        return atof(n->value);
+
+    /* variable — use cached double if available */
+    case NODE_VAR: {
+        Constant *c = find_const(n->name);
+        if (c) return atof(c->value);
+        Variable *v = find_var(n->name);
+        if (!v) return 0.0;
+        if (v->is_num) return v->num_value;
+        return atof(v->value);
+    }
+
+    /* arithmetic — fully recursive, pure double, zero string I/O */
+    case NODE_ADD_EXPR: return eval_num(n->left) + eval_num(n->right);
+    case NODE_SUB_EXPR: return eval_num(n->left) - eval_num(n->right);
+    case NODE_MUL_EXPR: return eval_num(n->left) * eval_num(n->right);
+    case NODE_POW_EXPR: return pow(eval_num(n->left), eval_num(n->right));
+    case NODE_DIV_EXPR: {
+        double b = eval_num(n->right);
+        if (b == 0.0) { err_div_zero(g_current_line); return 0.0; }
+        return eval_num(n->left) / b;
+    }
+    case NODE_MOD_EXPR: {
+        long long b = (long long)eval_num(n->right);
+        if (b == 0) { err_mod_zero(g_current_line); return 0.0; }
+        return (double)((long long)eval_num(n->left) % b);
+    }
+
+    /* unary minus — check how it's stored */
+    /* NAT folds unary minus at parse time into NODE_VAL("-5"),
+       so no separate NODE_NEG exists — nothing to handle here */
+
+    /* fallback — let the string eval handle it */
+    default: {
+        char buf[MAX_STR] = {0};
+        eval(n, buf, MAX_STR);
+        return atof(buf);
+    }
+    }
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -317,6 +390,38 @@ void eval(Node *n, char *out, int out_size) {
         eval(n->left, val, MAX_STR);
         double v = atof(val);
         fmt_num(out, out_size, fabs(v));
+        return;
+    }
+
+    /* ── larger(a,b,c,...) — returns the maximum value ── */
+    case NODE_LARGER: {
+        if (n->arg_count == 0) { strncpy(out, "0", out_size-1); return; }
+        char v[MAX_STR] = {0};
+        eval(n->args[0], v, MAX_STR);
+        double best = atof(v);
+        for (int i = 1; i < n->arg_count; i++) {
+            char a[MAX_STR] = {0};
+            eval(n->args[i], a, MAX_STR);
+            double d = atof(a);
+            if (d > best) best = d;
+        }
+        fmt_num(out, out_size, best);
+        return;
+    }
+
+    /* ── smallest(a,b,c,...) — returns the minimum value ── */
+    case NODE_SMALLEST: {
+        if (n->arg_count == 0) { strncpy(out, "0", out_size-1); return; }
+        char v[MAX_STR] = {0};
+        eval(n->args[0], v, MAX_STR);
+        double best = atof(v);
+        for (int i = 1; i < n->arg_count; i++) {
+            char a[MAX_STR] = {0};
+            eval(n->args[i], a, MAX_STR);
+            double d = atof(a);
+            if (d < best) best = d;
+        }
+        fmt_num(out, out_size, best);
         return;
     }
 
@@ -638,11 +743,19 @@ void eval(Node *n, char *out, int out_size) {
             }
         }
 
-        eval(n->left,  l, MAX_STR);
-        eval(n->right, r, MAX_STR);
+        /* v4.0 Phase 1b — eval both sides into string buffers first
+           (same as before), then use eval_num() for the actual computation
+           to avoid redundant atof() calls at every tree level.
+           This is safe: eval() for probe, eval_num() for speed. */
+        char lcheck[MAX_STR] = {0}, rcheck[MAX_STR] = {0};
+        eval(n->left,  lcheck, MAX_STR);
+        eval(n->right, rcheck, MAX_STR);
 
-        if (is_number(l) && is_number(r)) {
-            double a = atof(l), b = atof(r), res = 0;
+        if (is_number(lcheck) && is_number(rcheck)) {
+            /* both sides numeric — eval_num handles deep subtrees in double */
+            double a = eval_num(n->left);
+            double b = eval_num(n->right);
+            double res = 0;
             switch (n->kind) {
                 case NODE_ADD_EXPR: res = a + b; break;
                 case NODE_SUB_EXPR: res = a - b; break;
@@ -665,15 +778,14 @@ void eval(Node *n, char *out, int out_size) {
             }
             fmt_num(out, out_size, res);
         } else if (n->kind == NODE_ADD_EXPR) {
-            /* string + string → concat (only + is valid for strings) */
-            strncpy(out, l, out_size-1);
-            strncat(out, r, out_size-1-strlen(out));
+            /* string + string → concat */
+            strncpy(out, lcheck, out_size-1);
+            strncat(out, rcheck, out_size-1-strlen(out));
         } else {
             /* math op on text — fire error */
-            /* figure out which side is text for a helpful message */
-            if (!is_number(l) && n->left && n->left->kind == NODE_VAR)
+            if (!is_number(lcheck) && n->left && n->left->kind == NODE_VAR)
                 err_math_on_text(g_current_line, n->left->name);
-            else if (!is_number(r) && n->right && n->right->kind == NODE_VAR)
+            else if (!is_number(rcheck) && n->right && n->right->kind == NODE_VAR)
                 err_math_on_text(g_current_line, n->right->name);
             else
                 nat_error(g_current_line,

@@ -73,6 +73,7 @@
 #define T_NUM      "NUM"
 #define T_IN       "IN"
 #define T_MIDDLE   "MIDDLE"
+#define T_BETWEEN  "BETWEEN"
 #define T_OF       "OF"
 #define T_LENGTH   "LENGTH"
 #define T_UPPER    "UPPER"
@@ -80,6 +81,8 @@
 #define T_CONTAINS "CONTAINS"
 #define T_ABS      "ABS"
 #define T_ROUND    "ROUND"
+#define T_LARGER   "LARGER"
+#define T_SMALLEST "SMALLEST"
 
 #define T_PLUS     "PLUS"
 #define T_MINUS    "MINUS"
@@ -157,6 +160,8 @@ typedef enum {
     NODE_LOWER,         /* lower of x   */
     NODE_ABS,           /* abs of x     */
     NODE_ROUND,         /* round of x   */
+    NODE_LARGER,        /* larger(a,b,c,...) / larger of a,b,c */
+    NODE_SMALLEST,      /* smallest(a,b,c,...) / smallest of a,b,c */
     NODE_TRIM,          /* trim of x    */
     NODE_REPLACE,       /* replace A with B in x */
     NODE_SPLIT,         /* split x by " " */
@@ -232,11 +237,13 @@ struct Node {
    VARIABLE
    ───────────────────────────────────────────── */
 typedef struct {
-    char name[64];
-    char value[MAX_STR];
-    int  is_array;
-    char arr[MAX_ARRAY_ELEM][MAX_STR];
-    int  arr_len;
+    char   name[64];
+    int    is_num;              /* v4.0 Phase 1a — 1 if value is purely numeric */
+    double num_value;           /* v4.0 Phase 1a — cached parsed value */
+    char   value[MAX_STR];
+    int    is_array;
+    char   arr[MAX_ARRAY_ELEM][MAX_STR];
+    int    arr_len;
 } Variable;
 
 /* ─────────────────────────────────────────────
@@ -307,7 +314,8 @@ extern int      g_has_return;
 #define MAX_PATH_LEN    512
 extern char     g_imported[MAX_IMPORTS][MAX_PATH_LEN]; /* already loaded trees */
 extern int      g_import_count;
-extern char     g_nat_exe_dir[MAX_PATH_LEN];           /* directory of nat executable */
+extern char     g_nat_exe_dir[MAX_PATH_LEN];           /* directory of .nat script */
+extern char     g_nat_bin_dir[MAX_PATH_LEN];           /* directory of nat.exe itself */
 
 /* v3.6 — runtime injection table (write x inside "file.nat") */
 typedef struct { char name[64]; char value[MAX_STR]; } Inject;
@@ -326,6 +334,7 @@ void      execute_block(int start, int end);
 void      execute_func_body(FuncDef *fn);
 Variable *find_var(const char *name);
 Variable *set_var(const char *name, const char *value);
+void cache_numeric(Variable *v, const char *value);  /* v4.0 Phase 1a */
 Constant *find_const(const char *name);
 Node     *node_new(NodeType kind);
 void      node_free(Node *n);

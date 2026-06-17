@@ -1,0 +1,134 @@
+// ═══════════════════════════════════════════════════
+//   NAT v3.6.3 — TYPE COERCION EDGE CASE TESTS
+//   These are the HIGH-RISK behaviors for the Phase 1
+//   (string→typed storage) refactor. Lock in baseline
+//   output here BEFORE touching Variable struct.
+// ═══════════════════════════════════════════════════
+
+show "=== 1. Mixed-type array (numbers and strings) ===".
+let stuff are 10 "hello" 20 "world".
+show stuff[0].
+show stuff[1].
+show stuff[2].
+show stuff[3].
+
+show "=== 2. Dynamic retyping (number -> string) ===".
+let x be 10.
+show x + 5.
+x be "done".
+show x.
+
+show "=== 3. Dynamic retyping (string -> number) ===".
+let y be "start".
+show y.
+y be 99.
+show y + 1.
+
+show "=== 4. String + number concatenation via 'and' ===".
+let score be 95.
+show "Score: " and score.
+show score and " points".
+
+show "=== 5. Number stored then used in string context ===".
+let n be 42.
+show "Value is " and n and "!".
+
+show "=== 6. is_number / is_text on retyped variable ===".
+let z be 5.
+if z is number:
+    show "z is number: yes".
+end.
+z be "text now".
+if z is text:
+    show "z is text now: yes".
+end.
+
+show "=== 7. File read returns 'stringy numbers' ===".
+write "42" to "coerce_test.txt".
+append "100" to "coerce_test.txt".
+let line1 be read "coerce_test.txt" at line 1.
+show line1.
+show line1 + 1.
+delete file "coerce_test.txt".
+
+show "=== 8. Comparison: number vs numeric string ===".
+let a be 10.
+if a == "10":
+    show "10 == \"10\": true".
+else:
+    show "10 == \"10\": false".
+end.
+
+show "=== 9. Comparison: number vs number (no quotes) ===".
+let b be 10.
+if b == 10:
+    show "10 == 10: true".
+end.
+
+show "=== 10. Arithmetic on split() results (strings from split) ===".
+let parts be split "10,20,30" by ",".
+each p in parts:
+    show p + 1.
+end.
+
+show "=== 11. Concatenating two numbers with 'and' (not adding) ===".
+let p1 be 5.
+let p2 be 10.
+show p1 and p2.
+show p1 + p2.
+
+show "=== 12. Negative numbers and decimals ===".
+let neg be -5.
+let dec be 3.14.
+show neg.
+show dec.
+show neg + dec.
+show abs of neg.
+
+show "=== 13. Zero and falsy checks ===".
+let zero be 0.
+if zero == 0:
+    show "zero is 0: true".
+end.
+if not zero:
+    show "not zero: true (0 is falsy)".
+end.
+
+show "=== 14. Empty string vs zero ===".
+let empty be "".
+show "empty string shown: [" and empty and "]".
+
+show "=== 15. Large numbers ===".
+let big be 1000000.
+show big.
+show big * 2.
+show big + 0.5.
+
+show "=== 16. Function returning number vs string conditionally ===".
+make describe with flag inside:
+    if flag == 1:
+        give 42.
+    end.
+    give "none".
+end.
+show describe(1).
+show describe(0).
+
+show "=== 17. Array length after type mix ===".
+show length of stuff.
+
+show "=== 18. Reassigning array element ===".
+let arr are 1 2 3.
+show arr[0].
+
+show "=== 19. Constant (fix) with decimal ===".
+fix RATE be 0.5.
+show RATE.
+show RATE * 100.
+
+show "=== 20. Whole-number division displays without decimal ===".
+show 10 / 2.
+show 10 / 3.
+show 9 / 3.
+
+show "=== ALL TYPE COERCION TESTS COMPLETE ===".

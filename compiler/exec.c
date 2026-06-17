@@ -28,20 +28,43 @@ static void load_tree(const char *filename, int call_line) {
             return; /* already loaded — skip silently */
     }
 
-    /* build candidate paths */
-    char path1[MAX_PATH_LEN * 2] = {0}; /* local: same dir as .nat */
-    char path2[MAX_PATH_LEN * 2] = {0}; /* system: lib/ next to nat */
+    /* build candidate paths — tried in order:
+       1. same dir as .nat file being run
+       2. lib/ next to the .nat file
+       3. lib/ next to nat.exe binary (g_nat_bin_dir from argv[0])
+       4. NAT_HOME env variable + lib/ (set by installer or user)
+       5. lib/ in current working directory (fallback) */
+    char path1[MAX_PATH_LEN * 2] = {0};
+    char path2[MAX_PATH_LEN * 2] = {0};
+    char path3[MAX_PATH_LEN * 2] = {0};
+    char path4[MAX_PATH_LEN * 2] = {0};
+    char path5[MAX_PATH_LEN * 2] = {0};
 
-    snprintf(path1, sizeof(path1), "%s%s", g_nat_exe_dir, filename);
+    snprintf(path1, sizeof(path1), "%s%s",     g_nat_exe_dir, filename);
     snprintf(path2, sizeof(path2), "%slib/%s", g_nat_exe_dir, filename);
+    snprintf(path3, sizeof(path3), "%slib/%s", g_nat_bin_dir, filename);
 
-    /* try local first, then lib/ */
+    /* NAT_HOME env var — e.g. C:\NAT set in System PATH installer */
+    const char *nat_home = getenv("NAT_HOME");
+    if (nat_home) {
+        char sep = (strchr(nat_home, '\\')) ? '\\' : '/';
+        char trail = nat_home[strlen(nat_home)-1];
+        if (trail == '/' || trail == '\\')
+            snprintf(path4, sizeof(path4), "%slib/%s", nat_home, filename);
+        else
+            snprintf(path4, sizeof(path4), "%s%clib%c%s", nat_home, sep, sep, filename);
+    }
+
+    snprintf(path5, sizeof(path5), "lib/%s", filename);
+
+    /* try each path in order */
+    const char *candidates[] = { path1, path2, path3, path4, path5, NULL };
     const char *found_path = NULL;
-    FILE *fp = fopen(path1, "r");
-    if (fp) { found_path = path1; }
-    else {
-        fp = fopen(path2, "r");
-        if (fp) found_path = path2;
+    FILE *fp = NULL;
+    for (int i = 0; candidates[i]; i++) {
+        if (candidates[i][0] == '\0') continue;
+        fp = fopen(candidates[i], "r");
+        if (fp) { found_path = candidates[i]; break; }
     }
 
     if (!fp) {
@@ -49,7 +72,7 @@ static void load_tree(const char *filename, int call_line) {
         snprintf(what, sizeof(what),
             "cannot find tree file '%s'", filename);
         snprintf(hint, sizeof(hint),
-            "place '%s' in the same folder as your .nat file, or in the lib/ folder",
+            "place '%s' in the lib/ folder next to nat.exe, or set NAT_HOME env variable",
             filename);
         nat_error(call_line, what, hint);
         return;
@@ -336,6 +359,7 @@ void execute(Node *n) {
                 strncpy(g_vars[g_var_count].name,  fn->params[j], 63);
                 strncpy(g_vars[g_var_count].value, val,           MAX_STR-1);
                 g_vars[g_var_count].is_array = 0;
+                cache_numeric(&g_vars[g_var_count], val);
                 g_var_count++;
             }
         }
@@ -397,10 +421,12 @@ void execute(Node *n) {
             Variable *lv = find_var(n->name);
             if (lv) {
                 strncpy(lv->value, tmp, MAX_STR-1);
+                cache_numeric(lv, tmp);
             } else if (g_var_count < MAX_VARS) {
                 strncpy(g_vars[g_var_count].name,  n->name, 63);
                 strncpy(g_vars[g_var_count].value, tmp,     MAX_STR-1);
                 g_vars[g_var_count].is_array = 0;
+                cache_numeric(&g_vars[g_var_count], tmp);
                 g_var_count++;
             }
             execute_block(n->body_start, n->body_end);
@@ -907,7 +933,7 @@ void execute(Node *n) {
 "</head>\n"
 "<body>\n"
 "<h1>%s</h1>\n"
-"<div class=\"badge\">%s graph &nbsp;|&nbsp; NAT v3.5</div>\n"
+"<div class=\"badge\">%s graph &nbsp;|&nbsp; NAT v3.6.3</div>\n"
 "<canvas id=\"c\"></canvas>\n"
 "<script>\n"
 "const canvas = document.getElementById('c');\n"

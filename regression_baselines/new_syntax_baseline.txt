@@ -1,0 +1,146 @@
+=== 1. Variables & assignment (be, =, multi-decl) ===
+30
+-10
+200
+=== 2. Multiple declaration default 0 ===
+0
+0
+0
+=== 3. Math operators ===
+13
+7
+30
+2.5
+1
+256
+=== 4. String concat ===
+Hello, NAT!
+=== 5. Comparisons (English) ===
+x > 5: yes
+x < 5: no (correct)
+1
+x is not 0: yes
+=== 6. If / else if / else ===
+grade: B
+=== 7. While loop ===
+0
+1
+2
+3
+4
+=== 8. For loop (inclusive) ===
+1
+2
+3
+4
+5
+=== 9. Repeat N times ===
+tick
+tick
+tick
+=== 10. Step loops ===
+0
+2
+4
+6
+8
+10
+=== 11. Functions + give ===
+12
+=== 12. Recursive function ===
+55
+=== 13. Bare function call auto-print ===
+36
+=== 14. Constants (fix) ===
+100
+=== 15. Arrays ===
+apple
+mango
+banana
+apple
+banana
+3
+=== 16. Each loop (array) ===
+apple
+mango
+banana
+=== 17. Each loop (string chars) ===
+a
+b
+c
+=== 18. String builtins ===
+hello
+  HELLO  
+  hello  
+9
+=== 19. Math builtins (abs/round/floor/ceil of) ===
+7
+4
+3
+4
+=== 20. Type checking (is number / is text) ===
+42 is number: yes
+hi is text: yes
+=== 21. Clamp (from...to) ===
+100
+0
+=== 22. Split ===
+a
+b
+c
+=== 23. newline / skip aliases ===
+before newline
+
+after newline
+
+after skip
+=== 24. Module system (math.tree) ===
+9
+120
+6
+=== 25. Module system (geometry.tree) ===
+20
+10
+=== 26. Module system (string.tree) ===
+Hello World
+4
+=== 27. Module system (convert.tree) ===
+212
+5000
+=== 28. File I/O — write/read/append ===
+line 1 | line one
+line 2 | line two
+line 3 | line three
+=== 29. File I/O — write at line ===
+line 1 | line one
+line 2 | REPLACED
+line 3 | line three
+=== 30. File I/O — insert ===
+line 1 | INSERTED
+line 2 | line one
+line 3 | REPLACED
+line 4 | line three
+=== 31. File I/O — remove line ===
+line 1 | INSERTED
+line 2 | REPLACED
+line 3 | line three
+=== 32. File I/O — read at line ===
+INSERTED
+=== 33. File exists check ===
+rtest.txt exists: yes
+ghost file: correctly absent
+=== 34. Each line in file ===
+>> INSERTED
+>> REPLACED
+>> line three
+=== 35. Delete file ===
+rtest.txt deleted: confirmed
+=== 36. Runtime injection (write inside) ===
+injection registered (no file written)
+=== 37. Comments — all styles ===
+comments did not break execution
+multiline block comment did not break execution
+=== 38. Create graph (file output) ===
+Graph created: Test_Graph.html
+graph created
+=== ALL NEW SYNTAX TESTS COMPLETE ===

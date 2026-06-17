@@ -1,8 +1,8 @@
-# ═══════════════════════════════════════════
-#  examples.nat — NAT v3.4 Advanced Programs
-# ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  examples.nat — NAT v3.6 Advanced Programs
+// ═══════════════════════════════════════════
 
-# ── 1. Fibonacci ──────────────────────────
+// ── 1. Fibonacci ──────────────────────────
 show "Fibonacci Example:".
 make fib with n inside:
     if n < 2:
@@ -10,11 +10,11 @@ make fib with n inside:
     end.
     give fib(n - 1) + fib(n - 2).
 end.
-repeat i from 0 to 10 step 1:
-    show fib(i).
+repeat i from 0 to 10:
+    show fib i.
 end.
 
-# ── 2. Factorial ──────────────────────────
+// ── 2. Factorial ──────────────────────────
 show "Factorial Example:".
 make fact with n inside:
     if n < 2:
@@ -22,50 +22,50 @@ make fact with n inside:
     end.
     give n * fact(n - 1).
 end.
-repeat i from 1 to 8 step 1:
-    show fact(i).
+repeat i from 1 to 8:
+    show fact i.
 end.
 
-# ── 3. Power of 2 ─────────────────────────
+// ── 3. Power of 2 ─────────────────────────
 show "Powers of 2 Example:".
-fix BITS 8
+fix BITS be 8.
 make power with base exp inside:
     let result be 1.
-    repeat i from 1 to exp step 1:
+    repeat i from 1 to exp:
         let result be result * base.
     end.
     give result.
 end.
-repeat i from 0 to BITS step 1:
-    show power(2, i).
+repeat i from 0 to BITS:
+    show power 2, i.
 end.
 
-# ── 4. Even numbers ───────────────────────
+// ── 4. Even numbers ───────────────────────
 show "Even Numbers Example:".
-repeat i from 1 to 20 step 1:
+repeat i from 1 to 20:
     if i % 2 == 0:
         show i.
     end.
 end.
 
-# ── 5. Accumulation ───────────────────────
+// ── 5. Accumulation ───────────────────────
 show "Sum 1 to 10 Example:".
 let total be 0.
-repeat i from 1 to 10 step 1:
+repeat i from 1 to 10:
     add total with i to total.
 end.
 show total.
 
-# ── 6. String building ────────────────────
+// ── 6. String building ────────────────────
 show "String Building Example:".
-fix TITLE Dr
+fix TITLE be "Dr".
 make make_name with first last inside:
     give first and " " and last.
 end.
 show TITLE and ". " and make_name("Ada", "Lovelace").
 show TITLE and ". " and make_name("Alan", "Turing").
 
-# ── 7. Nested functions ───────────────────
+// ── 7. Nested functions ───────────────────
 show "Nested Functions Example:".
 make square with n inside:
     give n * n.
@@ -76,7 +76,7 @@ end.
 show "3^2 + 4^2 =".
 show hyp_sq(3, 4).
 
-# ── 8. While countdown ────────────────────
+// ── 8. While countdown ────────────────────
 show "Countdown Example:".
 let n be 5.
 while n >= 1:
@@ -85,7 +85,7 @@ while n >= 1:
 end.
 show "Go!".
 
-# ── 9. String operations ──────────────────
+// ── 9. String operations ──────────────────
 show "String Operations Example:".
 let name be "Nisarg Patel".
 show upper of name.
@@ -99,7 +99,7 @@ show r.
 let clean be trim of "  hello  ".
 show clean.
 
-# ── 10. Array mastery ─────────────────────
+// ── 10. Array mastery ─────────────────────
 show "Array Operations Example:".
 let colors are red green blue.
 add "yellow" to colors.
@@ -113,7 +113,7 @@ show each item in colors online with ", ".
 reverse colors.
 show each item in colors online with ", ".
 
-# ── 11. Each loop ─────────────────────────
+// ── 11. Each loop ─────────────────────────
 show "Each Loop Example:".
 let primes are 2 3 5 7 11 13.
 let psum be 0.
@@ -124,7 +124,7 @@ show "Sum of primes:".
 show psum.
 show each p in primes online with " + ".
 
-# ── 12. Random + clamp ────────────────────
+// ── 12. Random + clamp ────────────────────
 show "Random and Clamp Example:".
 let roll be random from 1 to 100.
 show clamp roll from 1 to 50.
@@ -132,7 +132,7 @@ let d1, d2, d3.
 random from 1 to 6 for d1 d2 d3.
 show d1 and " " and d2 and " " and d3.
 
-# ── 13. Type checking ─────────────────────
+// ── 13. Type checking ─────────────────────
 show "Type Checking Example:".
 let age be 24.
 let msg be "hello".

@@ -42,6 +42,7 @@ int      g_current_line        = 0;
 char     g_imported[MAX_IMPORTS][MAX_PATH_LEN] = {{0}};
 int      g_import_count = 0;
 char     g_nat_exe_dir[MAX_PATH_LEN] = {0};
+char     g_nat_bin_dir[MAX_PATH_LEN] = {0};  /* directory of nat.exe itself */
 
 /* v3.6 — runtime injection table */
 Inject   g_injects[MAX_INJECTS] = {{{0}}};
@@ -83,12 +84,17 @@ void pre_pass_fix(void) {
         Constant *c = &g_consts[g_const_count++];
         strncpy(c->name,  g_tokens[1].value, 63);
 
-        /* value = everything from token[2] onwards, joined with spaces */
+        /* value = everything from token[2] onwards, joined with spaces.
+           skip an optional 'be' keyword: fix PI be 3.14159. */
+        int start = 2;
+        if (start < g_tok_count && strcmp(g_tokens[start].type, T_BE) == 0)
+            start++;
+
         char val[MAX_STR] = {0};
-        for (int j = 2; j < g_tok_count; j++) {
+        for (int j = start; j < g_tok_count; j++) {
             /* skip statement-terminator dot */
             if (strcmp(g_tokens[j].type, T_DOT) == 0) break;
-            if (j > 2) strncat(val, " ", MAX_STR - (int)strlen(val) - 1);
+            if (j > start) strncat(val, " ", MAX_STR - (int)strlen(val) - 1);
             strncat(val, g_tokens[j].value, MAX_STR - (int)strlen(val) - 1);
         }
         strncpy(c->value, val, MAX_STR-1);
@@ -100,18 +106,27 @@ void pre_pass_fix(void) {
    ───────────────────────────────────────────────────────────────── */
 static void print_usage(const char *prog) {
     fprintf(stderr,
-        "NAT Language Interpreter v3.4\n"
+        "NAT Language Compiler v3.6.3\n"
+        "Founder: Nisarg | Co-Founder: Claude Sonnet\n"
+        "\n"
         "Usage: %s <script.nat>\n"
         "\n"
         "Quick syntax:\n"
-        "  let x be num(42).\n"
-        "  let name be Nisarg.\n"
-        "  fix PI 3.14\n"
-        "  show(x).\n"
-        "  show(\"Hello \" and name).\n"
-        "  add x with 10 to x.\n"
-        "  repeat i from 1 to 10 step 1:\n"
-        "      show(i).\n"
+        "  let x be 42.\n"
+        "  let name be \"Nisarg\".\n"
+        "  fix PI be 3.14.\n"
+        "  show x.\n"
+        "  show \"Hello \" and name.\n"
+        "  x = x + 10.\n"
+        "  repeat i from 1 to 10:\n"
+        "      show i.\n"
+        "  end.\n"
+        "\n"
+        "File I/O:\n"
+        "  write \"text\" to \"file.txt\".\n"
+        "  read \"file.txt\".\n"
+        "  each line in file \"file.txt\":\n"
+        "      show line.\n"
         "  end.\n",
         prog);
 }
@@ -138,6 +153,16 @@ int main(int argc, char *argv[]) {
         g_nat_exe_dir[0] = '\0'; /* same directory — no prefix needed */
     }
 
+    /* extract directory from nat.exe path (argv[0]) for fallback lib/ search */
+    strncpy(g_nat_bin_dir, argv[0], MAX_PATH_LEN-1);
+    char *bin_sep = strrchr(g_nat_bin_dir, '/');
+    if (!bin_sep) bin_sep = strrchr(g_nat_bin_dir, '\\');
+    if (bin_sep) {
+        *(bin_sep + 1) = '\0';
+    } else {
+        g_nat_bin_dir[0] = '\0';
+    }
+
     FILE *fp = fopen(argv[1], "r");
     if (!fp) {
         fprintf(stderr, "NAT error: cannot open file '%s'\n", argv[1]);
@@ -152,6 +177,28 @@ int main(int argc, char *argv[]) {
         g_line_count++;
     }
     fclose(fp);
+
+    /* strip multi-line block comments, blank out lines inside them */
+    {
+        int in_block = 0;
+        for (int i = 0; i < g_line_count; i++) {
+            char *p = g_lines[i];
+            char  out[MAX_LINE_LEN]; int oi = 0;
+            int   j = 0, ln = (int)strlen(p);
+            while (j < ln) {
+                if (!in_block && p[j]=='/' && j+1<ln && p[j+1]=='*') {
+                    in_block = 1; j += 2; continue;
+                }
+                if (in_block && p[j]=='*' && j+1<ln && p[j+1]=='/') {
+                    in_block = 0; j += 2; continue;
+                }
+                if (!in_block) out[oi++] = p[j];
+                j++;
+            }
+            out[oi] = '\0';
+            strncpy(g_lines[i], out, MAX_LINE_LEN-1);
+        }
+    }
 
     /* pre-pass: register all 'fix' constants before execution */
     pre_pass_fix();

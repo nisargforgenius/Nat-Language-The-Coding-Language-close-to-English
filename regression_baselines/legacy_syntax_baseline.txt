@@ -1,0 +1,51 @@
+=== 1. num() universal number wrapper ===
+42
+3.14
+=== 2. int() legacy alias for num() ===
+99
+=== 3. string() legacy wrapper ===
+Nisarg
+=== 4. show(expr) classic parens style ===
+42
+Hello Nisarg!
+141
+=== 5. fix without dot (legacy) ===
+50
+=== 6. add x with y to z (English arithmetic assignment) ===
+300
+301
+=== 7. Old-style for loop (inclusive, from..to step) ===
+1
+2
+3
+4
+5
+=== 8. Old-style repeat N times with num var ===
+loop
+loop
+loop
+=== 9. Old-style while with let-reassign ===
+0
+1
+2
+3
+4
+=== 10. Functions with give (unchanged since v3.0) ===
+49
+=== 11. Recursive function (fib, v3.0 style) ===
+55
+=== 12. English comparisons (v3.0) ===
+big
+ok
+nonzero
+=== 13. Logical NOT ===
+v is non-zero (not check)
+=== 14. Arrays with index access (v3.0) ===
+10
+50
+=== 15. ask for syntax (structure check only — no stdin here) ===
+ask for syntax exists and parses (not invoked)
+=== 16. Mixed old + new syntax in same program ===
+6
+6
+=== ALL BACKWARD COMPAT TESTS COMPLETE ===
