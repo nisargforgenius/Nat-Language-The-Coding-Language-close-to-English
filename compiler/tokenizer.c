@@ -65,6 +65,8 @@ static const KW keywords[] = {
     {"contains", T_CONTAINS},
     {"abs",      T_ABS     },
     {"round",    T_ROUND   },
+    {"larger",   T_LARGER  },
+    {"smallest", T_SMALLEST},
     /* v3.4 string stdlib */
     {"trim",     "TRIM"    },
     {"replace",  "REPLACE" },

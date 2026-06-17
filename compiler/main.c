@@ -42,6 +42,7 @@ int      g_current_line        = 0;
 char     g_imported[MAX_IMPORTS][MAX_PATH_LEN] = {{0}};
 int      g_import_count = 0;
 char     g_nat_exe_dir[MAX_PATH_LEN] = {0};
+char     g_nat_bin_dir[MAX_PATH_LEN] = {0};  /* directory of nat.exe itself */
 
 /* v3.6 — runtime injection table */
 Inject   g_injects[MAX_INJECTS] = {{{0}}};
@@ -150,6 +151,16 @@ int main(int argc, char *argv[]) {
         *(last_sep + 1) = '\0';  /* keep trailing slash */
     } else {
         g_nat_exe_dir[0] = '\0'; /* same directory — no prefix needed */
+    }
+
+    /* extract directory from nat.exe path (argv[0]) for fallback lib/ search */
+    strncpy(g_nat_bin_dir, argv[0], MAX_PATH_LEN-1);
+    char *bin_sep = strrchr(g_nat_bin_dir, '/');
+    if (!bin_sep) bin_sep = strrchr(g_nat_bin_dir, '\\');
+    if (bin_sep) {
+        *(bin_sep + 1) = '\0';
+    } else {
+        g_nat_bin_dir[0] = '\0';
     }
 
     FILE *fp = fopen(argv[1], "r");

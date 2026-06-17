@@ -11,7 +11,7 @@ make fib with n inside:
     give fib(n - 1) + fib(n - 2).
 end.
 repeat i from 0 to 10:
-    show fib(i).
+    show fib i.
 end.
 
 // ── 2. Factorial ──────────────────────────
@@ -23,7 +23,7 @@ make fact with n inside:
     give n * fact(n - 1).
 end.
 repeat i from 1 to 8:
-    show fact(i).
+    show fact i.
 end.
 
 // ── 3. Power of 2 ─────────────────────────
@@ -37,7 +37,7 @@ make power with base exp inside:
     give result.
 end.
 repeat i from 0 to BITS:
-    show power(2, i).
+    show power 2, i.
 end.
 
 // ── 4. Even numbers ───────────────────────

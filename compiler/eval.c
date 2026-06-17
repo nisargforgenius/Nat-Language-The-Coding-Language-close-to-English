@@ -15,7 +15,8 @@
 #include "nat.h"
 
 void execute_block(int start, int end);
-static int is_number(const char *s);  /* forward decl — defined later in this file */
+static int is_number(const char *s);     /* forward decl — defined later in this file */
+static double eval_num(Node *n);         /* forward decl — defined later in this file */
 
 /* ─────────────────────────────────────────────────────────────────
    VARIABLE HELPERS
@@ -177,6 +178,60 @@ static void call_function(const char *fname,
 }
 
 /* ─────────────────────────────────────────────────────────────────
+   eval_num  (v4.0 Phase 1b)
+   Fast numeric evaluator — returns double directly, zero string
+   conversion for the hot arithmetic path.
+   Falls back to eval()+atof() for anything it can't handle directly.
+   ───────────────────────────────────────────────────────────────── */
+static double eval_num(Node *n) {
+    if (!n) return 0.0;
+
+    switch (n->kind) {
+
+    /* literal number */
+    case NODE_VAL:
+        return atof(n->value);
+
+    /* variable — use cached double if available */
+    case NODE_VAR: {
+        Constant *c = find_const(n->name);
+        if (c) return atof(c->value);
+        Variable *v = find_var(n->name);
+        if (!v) return 0.0;
+        if (v->is_num) return v->num_value;
+        return atof(v->value);
+    }
+
+    /* arithmetic — fully recursive, pure double, zero string I/O */
+    case NODE_ADD_EXPR: return eval_num(n->left) + eval_num(n->right);
+    case NODE_SUB_EXPR: return eval_num(n->left) - eval_num(n->right);
+    case NODE_MUL_EXPR: return eval_num(n->left) * eval_num(n->right);
+    case NODE_POW_EXPR: return pow(eval_num(n->left), eval_num(n->right));
+    case NODE_DIV_EXPR: {
+        double b = eval_num(n->right);
+        if (b == 0.0) { err_div_zero(g_current_line); return 0.0; }
+        return eval_num(n->left) / b;
+    }
+    case NODE_MOD_EXPR: {
+        long long b = (long long)eval_num(n->right);
+        if (b == 0) { err_mod_zero(g_current_line); return 0.0; }
+        return (double)((long long)eval_num(n->left) % b);
+    }
+
+    /* unary minus — check how it's stored */
+    /* NAT folds unary minus at parse time into NODE_VAL("-5"),
+       so no separate NODE_NEG exists — nothing to handle here */
+
+    /* fallback — let the string eval handle it */
+    default: {
+        char buf[MAX_STR] = {0};
+        eval(n, buf, MAX_STR);
+        return atof(buf);
+    }
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────
    eval
    ───────────────────────────────────────────────────────────────── */
 void eval(Node *n, char *out, int out_size) {
@@ -335,6 +390,38 @@ void eval(Node *n, char *out, int out_size) {
         eval(n->left, val, MAX_STR);
         double v = atof(val);
         fmt_num(out, out_size, fabs(v));
+        return;
+    }
+
+    /* ── larger(a,b,c,...) — returns the maximum value ── */
+    case NODE_LARGER: {
+        if (n->arg_count == 0) { strncpy(out, "0", out_size-1); return; }
+        char v[MAX_STR] = {0};
+        eval(n->args[0], v, MAX_STR);
+        double best = atof(v);
+        for (int i = 1; i < n->arg_count; i++) {
+            char a[MAX_STR] = {0};
+            eval(n->args[i], a, MAX_STR);
+            double d = atof(a);
+            if (d > best) best = d;
+        }
+        fmt_num(out, out_size, best);
+        return;
+    }
+
+    /* ── smallest(a,b,c,...) — returns the minimum value ── */
+    case NODE_SMALLEST: {
+        if (n->arg_count == 0) { strncpy(out, "0", out_size-1); return; }
+        char v[MAX_STR] = {0};
+        eval(n->args[0], v, MAX_STR);
+        double best = atof(v);
+        for (int i = 1; i < n->arg_count; i++) {
+            char a[MAX_STR] = {0};
+            eval(n->args[i], a, MAX_STR);
+            double d = atof(a);
+            if (d < best) best = d;
+        }
+        fmt_num(out, out_size, best);
         return;
     }
 
@@ -656,25 +743,18 @@ void eval(Node *n, char *out, int out_size) {
             }
         }
 
-        /* v4.0 Phase 1a — fast path: if an operand is a bare variable
-           with a cached numeric value, skip eval()+is_number()+atof() */
-        double fa = 0, fb = 0;
-        int have_fa = 0, have_fb = 0;
-        if (n->left && n->left->kind == NODE_VAR) {
-            Variable *vl = find_var(n->left->name);
-            if (vl && !vl->is_array && vl->is_num) { fa = vl->num_value; have_fa = 1; }
-        }
-        if (n->right && n->right->kind == NODE_VAR) {
-            Variable *vr = find_var(n->right->name);
-            if (vr && !vr->is_array && vr->is_num) { fb = vr->num_value; have_fb = 1; }
-        }
+        /* v4.0 Phase 1b — eval both sides into string buffers first
+           (same as before), then use eval_num() for the actual computation
+           to avoid redundant atof() calls at every tree level.
+           This is safe: eval() for probe, eval_num() for speed. */
+        char lcheck[MAX_STR] = {0}, rcheck[MAX_STR] = {0};
+        eval(n->left,  lcheck, MAX_STR);
+        eval(n->right, rcheck, MAX_STR);
 
-        if (!have_fa) eval(n->left,  l, MAX_STR);
-        if (!have_fb) eval(n->right, r, MAX_STR);
-
-        if ((have_fa || is_number(l)) && (have_fb || is_number(r))) {
-            double a = have_fa ? fa : atof(l);
-            double b = have_fb ? fb : atof(r);
+        if (is_number(lcheck) && is_number(rcheck)) {
+            /* both sides numeric — eval_num handles deep subtrees in double */
+            double a = eval_num(n->left);
+            double b = eval_num(n->right);
             double res = 0;
             switch (n->kind) {
                 case NODE_ADD_EXPR: res = a + b; break;
@@ -697,26 +777,20 @@ void eval(Node *n, char *out, int out_size) {
                     break;
             }
             fmt_num(out, out_size, res);
+        } else if (n->kind == NODE_ADD_EXPR) {
+            /* string + string → concat */
+            strncpy(out, lcheck, out_size-1);
+            strncat(out, rcheck, out_size-1-strlen(out));
         } else {
-            /* fallback paths need l/r populated even if fast-path skipped eval */
-            if (have_fa && l[0] == '\0') fmt_num(l, MAX_STR, fa);
-            if (have_fb && r[0] == '\0') fmt_num(r, MAX_STR, fb);
-
-            if (n->kind == NODE_ADD_EXPR) {
-                /* string + string → concat (only + is valid for strings) */
-                strncpy(out, l, out_size-1);
-                strncat(out, r, out_size-1-strlen(out));
-            } else {
-                /* math op on text — fire error */
-                if (!is_number(l) && n->left && n->left->kind == NODE_VAR)
-                    err_math_on_text(g_current_line, n->left->name);
-                else if (!is_number(r) && n->right && n->right->kind == NODE_VAR)
-                    err_math_on_text(g_current_line, n->right->name);
-                else
-                    nat_error(g_current_line,
-                        "cannot do math on a text value",
-                        "make sure both sides of the operator are numbers");
-            }
+            /* math op on text — fire error */
+            if (!is_number(lcheck) && n->left && n->left->kind == NODE_VAR)
+                err_math_on_text(g_current_line, n->left->name);
+            else if (!is_number(rcheck) && n->right && n->right->kind == NODE_VAR)
+                err_math_on_text(g_current_line, n->right->name);
+            else
+                nat_error(g_current_line,
+                    "cannot do math on a text value",
+                    "make sure both sides of the operator are numbers");
         }
         return;
     }
