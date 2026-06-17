@@ -1,5 +1,17 @@
 # NAT — Natural Abstract Tree
 
+A simple, English-style compiled programming language written in pure C.
+Designed to read like natural English — no symbols where words will do.
+
+This language was created by Nisarg with the help of Claude Sonnet.
+The earliest versions V1.0 and V2.0 of NAT were written by Nisarg, but they had so many bugs that he had to bring in Claude to make it stable. Claude restructured the code and edited it into a better, stable form.
+
+When Nisarg first started learning to code, he was curious about how a programming language was created — how Dennis Ritchie created C, and why C performs better than other languages. This led him to research compilers and at the mid-semester of his second year (yup, he's a college student), he thought of the idea of creating his own language: simple to understand and fun to write. He built V1.0 and V2.0 — very basic tokenizer and parser, all in one `main.c` file, which didn't allow multi-line code and had broken identifiers. This made him give up on the project — until he realized this is the era of AI. So he uploaded his broken `main.c` to Claude, and to his surprise, it understood the method, the code structure, the ideology, and improved it into separate `parser.c`, `tokenizer.c` and other files. From there the first stable version was born: **v3.0**. Claude also became the coding partner — Nisarg codes, Claude improves it.
+
+We hope the devs will check this project.
+
+---
+
 > **Easy coding for developers.**
 > A compiled, English-style language built in C.
 
@@ -19,6 +31,17 @@ end.
 
 ---
 
+## Why NAT?
+
+- **Reads like English** — `let x be 10.` instead of `int x = 10;`
+- **Friendly errors** — tells you exactly what went wrong and how to fix it
+- **Batteries included** — standard library for math, geometry, strings, and unit conversion
+- **Module system** — import `.tree` files with `use math.tree`
+- **File I/O** — read, write, append, insert, delete lines from files
+- **Graph output** — `create graph` generates HTML charts instantly
+
+---
+
 ## Installation (Windows)
 
 1. Download the latest release zip from [Releases](../../releases)
@@ -34,114 +57,55 @@ nat hello.nat
 
 ---
 
-## Project Structure
-
-```
-NAT/
-├── compiler/       ← C source files (build NAT from here)
-├── examples/       ← example and test .nat programs
-├── lib/            ← standard library (.tree files)
-├── nat.exe         ← Windows binary
-├── hello.nat       ← full language showcase
-└── README.md
-```
-
-**Build command:**
-```bash
-cd compiler
-gcc *.c -o ../nat.exe -lm
-```
-
----
-
 ## Quick Start
 
+**hello.nat**
 ```nat
-// hello.nat
 show "Hello, World!".
 ```
 
+Run it:
 ```
 nat hello.nat
 ```
 
----
-
-## Language at a Glance
-
-### Variables & Assignment
+**Variables and math:**
 ```nat
 let x be 10.
-let name be "Nisarg".
-let x, y, z.        // declare multiple — default 0
-
-x be 20.            // reassign with 'be'
-x = 20.             // reassign with '=' — both work
+let y be 20.
+let sum be x + y.
+show sum.
 ```
 
-### Math
+**Functions:**
 ```nat
-show 10 + 3.
-show 2 ^ 8.
-show (x + y) * 2.
-show larger(12, 45, 677, 2).     // 677
-show smallest(1, 45, 6, 0.008).  // 0.008
-show larger of 10, 20, 5.        // 20  — 'of' syntax also works
-```
-
-### Functions
-```nat
-make add with a b inside:
-    give a + b.
+make greet with name inside:
+    show "Hello, " and name.
 end.
 
-show add(3, 4).      // with brackets
-show add 3, 4.       // without brackets — both work
+greet "Nisarg".
 ```
 
-### Loops
+**Loops:**
 ```nat
+repeat 5 times:
+    show "NAT is great.".
+end.
+
 repeat i from 1 to 10:
     show i.
 end.
-
-repeat 5 times:
-    show "NAT!".
-end.
-
-while x > 0:
-    x = x - 1.
-end.
 ```
 
-### Conditions
-```nat
-if score >= 90:
-    show "A".
-else if score >= 80:
-    show "B".
-else:
-    show "C".
-end.
-
-if x is between 1 and 10:
-    show "in range".
-end.
-```
-
-### Arrays
+**Arrays:**
 ```nat
 let fruits are "apple" "mango" "banana".
-show first of fruits.
-show last of fruits.
-show count of fruits.
-
 each item in fruits:
     show item.
 end.
 ```
 
-### File I/O
+**File I/O:**
 ```nat
 write "Hello" to "notes.txt".
 append "World" to "notes.txt".
@@ -150,48 +114,118 @@ read "notes.txt".
 each line in file "notes.txt":
     show line.
 end.
-
-if file "notes.txt" exists:
-    delete file "notes.txt".
-end.
 ```
 
-### Standard Library
+**Using the standard library:**
 ```nat
 use math.tree
 show sqrt 144.
 show pow 2, 10.
-show factorial 5.
 
 use geometry.tree
 show area_rect 5, 3.
-show area_circle 7.
-
-use string.tree
-show title_of "hello world".
-
-use convert.tree
-show cel_to_fahr 100.
-```
-
-### Comments
-```nat
-// single line
-/* multi
-   line */
-# hash style — also works
 ```
 
 ---
 
 ## Standard Library
 
-| File | Contents |
-|------|----------|
-| `math.tree` | `sqrt`, `pow`, `factorial`, `gcd`, `lcm`, `sin_deg`, `cos_deg`, `ln`, `log10`, `PI`, `E`, `TAU` |
-| `geometry.tree` | Area/perimeter for circles, rectangles, triangles, 3D shapes, vectors |
-| `string.tree` | `title_of`, `word_count`, `starts_with`, `ends_with`, `pad_left`, `is_alpha` |
-| `convert.tree` | `cel_to_fahr`, `km_to_mile`, `kg_to_lb`, `deg_to_rad` and more |
+| File | What's inside |
+|------|--------------|
+| `math.tree` | `sqrt`, `pow`, `factorial`, `log`, `sin`, `cos`, `PI`, `E`, `TAU` and more |
+| `geometry.tree` | Area and perimeter for 2D/3D shapes, coordinate geometry, vectors |
+| `string.tree` | `title_of`, `word_count`, `pad_left`, `starts_with`, `ends_with` and more |
+| `convert.tree` | km↔miles, °C↔°F, kg↔lbs, radians↔degrees and more |
+
+---
+
+## Project Structure
+
+```
+NAT/
+├── compiler/       ← source code (C)
+│   ├── main.c
+│   ├── parser.c
+│   ├── eval.c
+│   ├── exec.c
+│   ├── tokenizer.c
+│   ├── nat.h
+│   └── errors.h
+├── lib/            ← standard library (.tree files)
+│   ├── math.tree
+│   ├── geometry.tree
+│   ├── string.tree
+│   └── convert.tree
+├── examples/       ← example .nat programs
+├── nat.exe         ← Windows binary (latest release)
+└── README.md
+```
+
+---
+
+## Building from Source
+
+Requires GCC.
+
+```bash
+cd compiler
+gcc *.c -o ../nat.exe -lm
+```
+
+---
+
+## Language Syntax at a Glance
+
+```nat
+// Variables
+let x be 10.
+let name be "NAT".
+let x, y, z.           // declare multiple — default 0
+
+// Assignment
+x be 20.
+x = 20.                // = also works
+
+// Conditionals
+if x is greater than 5:
+    show "big".
+else:
+    show "small".
+end.
+
+// While loop
+while x is greater than 0:
+    x be x - 1.
+end.
+
+// Functions — brackets optional
+make add with a b inside:
+    give a + b.
+end.
+
+show add 3, 4.
+show add(3, 4).
+
+// Min / Max
+show larger(12, 45, 677, 2).      // 677
+show smallest(1, 45, 6, 0.008).   // 0.008
+show larger of 10, 20, 5.         // 20
+
+// Constants
+fix PI be 3.14159.
+
+// Ask user input
+ask for name.
+show "You entered: " and name.
+
+// File I/O
+write "text" to "file.txt".
+append "more" to "file.txt".
+let line be read "file.txt" at line 1.
+if file "file.txt" exists:
+    delete file "file.txt".
+end.
+```
 
 ---
 
@@ -199,24 +233,23 @@ show cel_to_fahr 100.
 
 | Version | Highlights |
 |---------|-----------|
-| v3.0 | Core language |
-| v3.1 | `is between`, built-in functions |
-| v3.2 | Parser rewrite |
+| v3.0 | Core language — variables, loops, functions, arrays |
+| v3.1 | Bug fixes, `is between X and Y`, built-in functions |
+| v3.2 | Parser improvements |
 | v3.3 | Helper error system with personality messages |
-| v3.4 | Standard library builtins |
-| v3.5 | Module system (`.tree`), `create graph` |
-| v3.6 | File I/O, runtime injection, `=` assignment |
-| v3.6.1–3.6.4 | Windows CRLF fix, comment system, `is between`, `random between`, example syntax modernization |
-| v3.7 | No-bracket function calls, Phase 1a/1b numeric cache, `larger`/`smallest`, proper directory structure |
-| v4.0 | Phase 2 — typed variable storage (in progress) |
+| v3.4 | Standard library — trim, replace, split, math ops, type checking, random |
+| v3.5 | Module system (`.tree` files), `create graph`, `each` loops |
+| v3.6 | File I/O — read, write, append, insert, remove, delete, `each line in file` |
+| v3.7 | No-bracket calls, `larger`/`smallest`, numeric cache (Phase 1), new directory structure |
+| v4.0 | Phase 2 — typed variable storage, performance foundation |
 
 ---
 
 ## Roadmap
 
-- **v4.0 Phase 2** — typed Variable storage (`double` + `string` union, no more char[] for numbers)
+- **v4.0 Phase 2** — typed Variable storage (`double` + `string` union, no more `char[]` for numbers)
 - **v4.0 Phase 3** — `nat_runtime` library
-- **v4.0 Phase 4** — `nat build` transpile-to-C via bundled TinyCC
+- **v4.0 Phase 4** — `nat build` transpile-to-C via bundled TinyCC (zero external compiler needed)
 - **v4.5** — Object system, reserved keywords
 
 ---
@@ -227,5 +260,4 @@ MIT — see [LICENSE](LICENSE)
 
 ---
 
-*Founder: Nisarg | Co-Founder: Claude Sonnet*
-*NAT — the guy in the chair. C is Spider-Man, NAT handles the rest.*
+*NAT — Created by Nisarg and Claude, for the devs.*
