@@ -259,5 +259,6 @@ end.
 MIT — see [LICENSE](LICENSE)
 
 ---
+## Ewww Vibe-Coding Sucks
 
 *NAT — Created by Nisarg and Claude, for the devs.*
