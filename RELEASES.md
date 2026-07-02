@@ -1,5 +1,4 @@
 # NAT Language — Release Notes
-# Copy-paste each section when creating a GitHub release
 
 ---
 

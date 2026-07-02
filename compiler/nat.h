@@ -234,17 +234,43 @@ struct Node {
 };
 
 /* ─────────────────────────────────────────────
-   VARIABLE
+   VARIABLE  (v4.0 Phase 2 — typed storage)
    ───────────────────────────────────────────── */
+
+/* value type tag */
+typedef enum { VAL_STR = 0, VAL_NUM = 1 } ValType;
+
 typedef struct {
-    char   name[64];
-    int    is_num;              /* v4.0 Phase 1a — 1 if value is purely numeric */
-    double num_value;           /* v4.0 Phase 1a — cached parsed value */
-    char   value[MAX_STR];
-    int    is_array;
-    char   arr[MAX_ARRAY_ELEM][MAX_STR];
-    int    arr_len;
+    char    name[64];
+    ValType type;               /* VAL_NUM or VAL_STR                    */
+    double  num;                /* used when type == VAL_NUM              */
+    char    str[MAX_STR];       /* used when type == VAL_STR              */
+    int     is_array;
+    ValType arr_type[MAX_ARRAY_ELEM]; /* type of each array element       */
+    double  arr_num[MAX_ARRAY_ELEM];  /* numeric array elements           */
+    char    arr[MAX_ARRAY_ELEM][MAX_STR]; /* string array elements        */
+    int     arr_len;
 } Variable;
+
+/* ── helper macros ───────────────────────────── */
+
+/* read variable as double — no atof on hot path for numeric vars */
+#define VAR_NUM(v) ((v)->type == VAL_NUM ? (v)->num : atof((v)->str))
+
+/* write variable as string into a buffer */
+static inline void var_to_str(const Variable *v, char *out, int sz) {
+    if (v->type == VAL_NUM) {
+        /* inline the fmt_num logic to avoid forward decl issue */
+        long long iv = (long long)v->num;
+        if ((double)iv == v->num)
+            snprintf(out, sz, "%lld", iv);
+        else
+            snprintf(out, sz, "%.10g", v->num);
+    } else {
+        strncpy(out, v->str, sz-1);
+        out[sz-1] = '\0';
+    }
+}
 
 /* ─────────────────────────────────────────────
    CONSTANT  (fix name value)
@@ -306,7 +332,10 @@ extern int      g_func_count;
 extern char     g_lines[MAX_LINES][MAX_LINE_LEN];
 extern int      g_line_count;
 
-extern char     g_return_val[MAX_STR];
+/* v4.0 Phase 2 — typed return value */
+typedef struct { ValType type; double num; char str[MAX_STR]; } NatVal;
+extern NatVal   g_return_val;
+extern char     g_return_str[MAX_STR]; /* legacy compat — remove in Phase 3 */
 extern int      g_has_return;
 
 /* ── v3.5 module system ── */
@@ -334,7 +363,9 @@ void      execute_block(int start, int end);
 void      execute_func_body(FuncDef *fn);
 Variable *find_var(const char *name);
 Variable *set_var(const char *name, const char *value);
-void cache_numeric(Variable *v, const char *value);  /* v4.0 Phase 1a */
+void cache_numeric(Variable *v, const char *value);  /* v4.0 Phase 2 */
+int  is_number(const char *s);                        /* numeric string check */
+void fmt_num(char *out, int out_size, double v);      /* number formatter */
 Constant *find_const(const char *name);
 Node     *node_new(NodeType kind);
 void      node_free(Node *n);

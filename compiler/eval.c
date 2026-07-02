@@ -12,25 +12,42 @@
  *   NODE_ROUND             — round of x
  */
 
-#include "nat.h"
+#include "nat_runtime.h"
 
 void execute_block(int start, int end);
-static int is_number(const char *s);     /* forward decl — defined later in this file */
+
 static double eval_num(Node *n);         /* forward decl — defined later in this file */
 
 /* ─────────────────────────────────────────────────────────────────
    VARIABLE HELPERS
    ───────────────────────────────────────────────────────────────── */
 
-/* v4.0 Phase 1a — detect if a string is purely numeric (using the
-   same rules as is_number()) and cache the parsed value. */
-void cache_numeric(Variable *v, const char *value) {
+/* v4.0 Phase 2 — set a Variable's typed value from a string.
+   Detects numeric strings and stores as double, otherwise stores as string.
+   This is the ONLY place where string→typed conversion happens. */
+static void var_set_from_str(Variable *v, const char *value) {
     if (is_number(value)) {
-        v->is_num    = 1;
-        v->num_value = atof(value);
+        v->type = VAL_NUM;
+        v->num  = atof(value);
+        v->str[0] = '\0';
     } else {
-        v->is_num = 0;
+        v->type = VAL_STR;
+        strncpy(v->str, value, MAX_STR-1);
+        v->str[MAX_STR-1] = '\0';
+        v->num  = 0.0;
     }
+}
+
+/* v4.0 Phase 2 — set from a known double (no string parsing needed) */
+static void var_set_num(Variable *v, double d) {
+    v->type = VAL_NUM;
+    v->num  = d;
+    v->str[0] = '\0';
+}
+
+/* legacy shim — cache_numeric kept for call sites in exec.c */
+void cache_numeric(Variable *v, const char *value) {
+    var_set_from_str(v, value);
 }
 
 Variable *find_var(const char *name) {
@@ -41,23 +58,24 @@ Variable *find_var(const char *name) {
 }
 
 Variable *set_var(const char *name, const char *value) {
+    /* update existing */
     for (int i = g_var_count - 1; i >= 0; i--)
         if (strcmp(g_vars[i].name, name) == 0) {
-            strncpy(g_vars[i].value, value, MAX_STR-1);
             g_vars[i].is_array = 0;
-            cache_numeric(&g_vars[i], value);
+            var_set_from_str(&g_vars[i], value);
             return &g_vars[i];
         }
+    /* create new */
     if (g_var_count >= MAX_VARS) {
         fprintf(stderr, "NAT: variable table overflow\n");
         return NULL;
     }
     Variable *v = &g_vars[g_var_count++];
-    strncpy(v->name,  name,  63);
-    strncpy(v->value, value, MAX_STR-1);
+    memset(v, 0, sizeof(Variable));
+    strncpy(v->name, name, 63);
     v->is_array = 0;
     v->arr_len  = 0;
-    cache_numeric(v, value);
+    var_set_from_str(v, value);
     return v;
 }
 
@@ -76,7 +94,7 @@ Constant *find_const(const char *name) {
    INTERNAL HELPERS
    ───────────────────────────────────────────────────────────────── */
 
-static int is_number(const char *s) {
+int is_number(const char *s) {
     if (!s || !*s) return 0;
     const char *p = s;
     if (*p == '-' || *p == '+') p++;
@@ -104,7 +122,7 @@ static int is_number(const char *s) {
     return has_digits;
 }
 
-static void fmt_num(char *out, int out_size, double v) {
+void fmt_num(char *out, int out_size, double v) {
     long long iv = (long long)v;
     if ((double)iv == v)
         snprintf(out, out_size, "%lld", iv);
@@ -149,32 +167,31 @@ static void call_function(const char *fname,
 
     int  saved_vc  = g_var_count;
     int  saved_ret = g_has_return;
-    char saved_rv[MAX_STR];
-    strncpy(saved_rv, g_return_val, MAX_STR-1);
+    NatVal saved_rv = g_return_val;
 
     for (int j = 0; j < fn->param_count; j++) {
         char val[MAX_STR] = {0};
         if (j < call_argc && call_args[j])
             eval(call_args[j], val, MAX_STR);
         if (g_var_count < MAX_VARS) {
-            strncpy(g_vars[g_var_count].name,  fn->params[j], 63);
-            strncpy(g_vars[g_var_count].value, val,           MAX_STR-1);
+            strncpy(g_vars[g_var_count].name, fn->params[j], 63);
             g_vars[g_var_count].is_array = 0;
+            g_vars[g_var_count].arr_len  = 0;
             cache_numeric(&g_vars[g_var_count], val);
             g_var_count++;
         }
     }
 
     g_has_return    = 0;
-    g_return_val[0] = '\0';
+    g_return_val.type = VAL_NUM; g_return_val.num = 0.0; g_return_val.str[0] = '\0';
 
     execute_func_body(fn);
 
-    strncpy(out, g_return_val, out_size-1);
+    /* output return value */ { if (g_return_val.type == VAL_NUM) fmt_num(out, out_size, g_return_val.num); else strncpy(out, g_return_val.str, out_size-1); }
 
     g_var_count  = saved_vc;
     g_has_return = saved_ret;
-    strncpy(g_return_val, saved_rv, MAX_STR-1);
+    g_return_val = saved_rv;
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -198,8 +215,7 @@ static double eval_num(Node *n) {
         if (c) return atof(c->value);
         Variable *v = find_var(n->name);
         if (!v) return 0.0;
-        if (v->is_num) return v->num_value;
-        return atof(v->value);
+        return VAR_NUM(v);   /* VAL_NUM → v->num, VAL_STR → atof(v->str) */
     }
 
     /* arithmetic — fully recursive, pure double, zero string I/O */
@@ -267,7 +283,7 @@ void eval(Node *n, char *out, int out_size) {
                 if (i < v->arr_len - 1 && rem > 1) { strcat(out, " "); rem--; }
             }
         } else {
-            strncpy(out, v->value, out_size-1);
+            var_to_str(v, out, out_size);  /* VAL_NUM → formatted, VAL_STR → string */
         }
         return;
     }
@@ -287,20 +303,25 @@ void eval(Node *n, char *out, int out_size) {
         int idx = atoi(idxstr);
 
         if (v->is_array) {
-            /* array index */
             if (idx < 0 || idx >= v->arr_len) {
                 err_index_range(g_current_line, n->name, idx, v->arr_len);
                 return;
             }
             strncpy(out, v->arr[idx], out_size-1);
         } else {
-            /* string character index */
-            int slen = (int)strlen(v->value);
+            /* string character index — only valid for VAL_STR */
+            if (v->type == VAL_NUM) {
+                nat_error(g_current_line,
+                    "cannot index a numeric variable with [ ]",
+                    "use [ ] only on strings or arrays");
+                return;
+            }
+            int slen = (int)strlen(v->str);
             if (idx < 0 || idx >= slen) {
                 err_index_range(g_current_line, n->name, idx, slen);
                 return;
             }
-            out[0] = v->value[idx];
+            out[0] = v->str[idx];
             out[1] = '\0';
         }
         return;
@@ -349,38 +370,31 @@ void eval(Node *n, char *out, int out_size) {
 
     /* ── length of x ── */
     case NODE_LENGTH: {
-        /* if left is a variable that is an array, return element count */
         if (n->left && n->left->kind == NODE_VAR) {
             Variable *v = find_var(n->left->name);
             if (v && v->is_array) {
-                snprintf(out, out_size, "%d", v->arr_len);
+                snprintf(out, out_size, "%d", nat_array_len(v));
                 return;
             }
         }
-        /* otherwise return string length */
         char val[MAX_STR]={0};
         eval(n->left, val, MAX_STR);
-        snprintf(out, out_size, "%d", (int)strlen(val));
+        snprintf(out, out_size, "%d", nat_str_length(val));
         return;
     }
 
-    /* ── upper of x ── */
+    /* ── upper / lower of x ── */
     case NODE_UPPER: {
         char val[MAX_STR]={0};
         eval(n->left, val, MAX_STR);
-        for (int i = 0; val[i]; i++)
-            val[i] = (char)toupper((unsigned char)val[i]);
-        strncpy(out, val, out_size-1);
+        nat_upper(out, out_size, val);
         return;
     }
 
-    /* ── lower of x ── */
     case NODE_LOWER: {
         char val[MAX_STR]={0};
         eval(n->left, val, MAX_STR);
-        for (int i = 0; val[i]; i++)
-            val[i] = (char)tolower((unsigned char)val[i]);
-        strncpy(out, val, out_size-1);
+        nat_lower(out, out_size, val);
         return;
     }
 
@@ -388,40 +402,24 @@ void eval(Node *n, char *out, int out_size) {
     case NODE_ABS: {
         char val[MAX_STR]={0};
         eval(n->left, val, MAX_STR);
-        double v = atof(val);
-        fmt_num(out, out_size, fabs(v));
+        fmt_num(out, out_size, nat_abs(atof(val)));
         return;
     }
 
-    /* ── larger(a,b,c,...) — returns the maximum value ── */
-    case NODE_LARGER: {
-        if (n->arg_count == 0) { strncpy(out, "0", out_size-1); return; }
-        char v[MAX_STR] = {0};
-        eval(n->args[0], v, MAX_STR);
-        double best = atof(v);
-        for (int i = 1; i < n->arg_count; i++) {
-            char a[MAX_STR] = {0};
-            eval(n->args[i], a, MAX_STR);
-            double d = atof(a);
-            if (d > best) best = d;
-        }
-        fmt_num(out, out_size, best);
-        return;
-    }
-
-    /* ── smallest(a,b,c,...) — returns the minimum value ── */
+    /* ── larger(a,b,c,...) / smallest(a,b,c,...) ── */
+    case NODE_LARGER:
     case NODE_SMALLEST: {
         if (n->arg_count == 0) { strncpy(out, "0", out_size-1); return; }
-        char v[MAX_STR] = {0};
-        eval(n->args[0], v, MAX_STR);
-        double best = atof(v);
-        for (int i = 1; i < n->arg_count; i++) {
+        double vals[MAX_ARGS];
+        for (int i = 0; i < n->arg_count; i++) {
             char a[MAX_STR] = {0};
             eval(n->args[i], a, MAX_STR);
-            double d = atof(a);
-            if (d < best) best = d;
+            vals[i] = atof(a);
         }
-        fmt_num(out, out_size, best);
+        double res = (n->kind == NODE_LARGER)
+            ? nat_larger(vals, n->arg_count)
+            : nat_smallest(vals, n->arg_count);
+        fmt_num(out, out_size, res);
         return;
     }
 
@@ -429,8 +427,7 @@ void eval(Node *n, char *out, int out_size) {
     case NODE_ROUND: {
         char val[MAX_STR]={0};
         eval(n->left, val, MAX_STR);
-        double v = atof(val);
-        fmt_num(out, out_size, round(v));
+        fmt_num(out, out_size, nat_round(atof(val)));
         return;
     }
 
@@ -605,7 +602,7 @@ void eval(Node *n, char *out, int out_size) {
     case NODE_FLOOR: {
         char val[MAX_STR]={0};
         eval(n->left, val, MAX_STR);
-        fmt_num(out, out_size, floor(atof(val)));
+        fmt_num(out, out_size, nat_floor_val(atof(val)));
         return;
     }
 
@@ -613,7 +610,7 @@ void eval(Node *n, char *out, int out_size) {
     case NODE_CEIL: {
         char val[MAX_STR]={0};
         eval(n->left, val, MAX_STR);
-        fmt_num(out, out_size, ceil(atof(val)));
+        fmt_num(out, out_size, nat_ceil_val(atof(val)));
         return;
     }
 
@@ -809,8 +806,21 @@ void eval(Node *n, char *out, int out_size) {
         if (is_number(l) && is_number(r)) {
             double a = atof(l), b = atof(r);
             switch (n->kind) {
-                case NODE_CMP_EQ:  cmp = (a == b); break;
-                case NODE_CMP_NEQ: cmp = (a != b); break;
+                case NODE_CMP_EQ:
+                case NODE_CMP_NEQ: {
+                    /* NAT intentional behavior: == and != compare via fmt_num
+                       rounded strings so that 0.1+0.2 == 0.3 is TRUE.
+                       This is a deliberate design choice — NAT is the first
+                       C-compiled language where float equality just works.
+                       Phase 3 note: keep this fmt_num path even when moving
+                       to typed double comparisons everywhere else. */
+                    char sa[64]={0}, sb[64]={0};
+                    fmt_num(sa, sizeof(sa), a);
+                    fmt_num(sb, sizeof(sb), b);
+                    int eq = (strcmp(sa, sb) == 0);
+                    cmp = (n->kind == NODE_CMP_EQ) ? eq : !eq;
+                    break;
+                }
                 case NODE_CMP_GT:  cmp = (a >  b); break;
                 case NODE_CMP_LT:  cmp = (a <  b); break;
                 case NODE_CMP_GTE: cmp = (a >= b); break;
@@ -852,29 +862,14 @@ void eval(Node *n, char *out, int out_size) {
         char lnum[64] = {0};
         if (n->right) eval(n->right, lnum, 64);
         int target = atoi(lnum);
-        FILE *fp = fopen(n->name, "rb");
-        if (!fp) { err_file_not_found(g_current_line, n->name); return; }
-        char buf[MAX_STR]; int ln = 1;
-        while (fgets(buf, MAX_STR, fp)) {
-            if (ln == target) {
-                int bl = strlen(buf);
-                if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
-                strncpy(out, buf, out_size-1);
-                fclose(fp);
-                return;
-            }
-            ln++;
-        }
-        fclose(fp);
-        err_line_range(g_current_line, n->name, target);
+        if (!nat_file_read_line(n->name, target, out, out_size))
+            err_line_range(g_current_line, n->name, target);
         return;
     }
 
     /* ── file "x.txt" exists — boolean ── */
     case NODE_FILE_EXISTS: {
-        FILE *fp = fopen(n->name, "rb");
-        if (fp) { fclose(fp); strncpy(out, "1", out_size-1); }
-        else    { strncpy(out, "0", out_size-1); }
+        strncpy(out, nat_file_exists(n->name) ? "1" : "0", out_size-1);
         return;
     }
 

@@ -3,12 +3,12 @@
 A simple, English-style compiled programming language written in pure C.
 Designed to read like natural English — no symbols where words will do.
 
-This language was created by Nisarg with the help of Claude Sonnet.
-The earliest versions V1.0 and V2.0 of NAT were written by Nisarg, but they had so many bugs that he had to bring in Claude to make it stable. Claude restructured the code and edited it into a better, stable form.
+This language was created by me (Nisarg) with the help of Claude Sonnet.
+The earliest versions V1.0 and V2.0 of NAT were written by me, but they had so many bugs that I had to bring in Claude to make it stable. Claude restructured the code and edited it into a better, stable form.
 
-When Nisarg first started learning to code, he was curious about how a programming language was created — how Dennis Ritchie created C, and why C performs better than other languages. This led him to research compilers and at the mid-semester of his second year (yup, he's a college student), he thought of the idea of creating his own language: simple to understand and fun to write. He built V1.0 and V2.0 — very basic tokenizer and parser, all in one `main.c` file, which didn't allow multi-line code and had broken identifiers. This made him give up on the project — until he realized this is the era of AI. So he uploaded his broken `main.c` to Claude, and to his surprise, it understood the method, the code structure, the ideology, and improved it into separate `parser.c`, `tokenizer.c` and other files. From there the first stable version was born: **v3.0**. Claude also became the coding partner — Nisarg codes, Claude improves it.
+When I first started learning to code, I was curious about how a programming language was created — how Dennis Ritchie created C, and why C performs better than other languages. This led me to research compilers and at the mid-semester of my second year (yup, I am a college student), I thought of the idea of creating my own language: simple to understand and fun to write. I built V1.0 and V2.0 — very basic tokenizer and parser, all in one `main.c` file, which didn't allow multi-line code and had broken identifiers. This made me give up on the project — until I realized this is the era of AI. So I uploaded my broken `main.c` to Claude, and to my surprise, it understood the method, the code structure, the ideology, and improved it into separate `parser.c`, `tokenizer.c` and other files. From there the first stable version was born: **v3.0**. Claude also became my coding partner — I code, Claude improves it.
 
-We hope the devs will check this project.
+I hope the devs will check this project.
 
 ---
 

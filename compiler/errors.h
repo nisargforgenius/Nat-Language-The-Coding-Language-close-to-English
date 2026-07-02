@@ -1,3 +1,6 @@
+#ifndef NAT_ERRORS_H
+#define NAT_ERRORS_H
+#pragma once
 /*
  * errors.h — NAT Language v3.3 Error & Warning System
  *
@@ -442,3 +445,5 @@ static inline void err_line_range(int line, const char *fname, int target) {
         "use  read \"%s\".  first to see how many lines it has", fname);
     nat_error(line, what, hint);
 }
+NAT_ERRORS_H
+#endif

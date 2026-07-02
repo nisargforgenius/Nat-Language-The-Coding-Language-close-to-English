@@ -5,7 +5,7 @@
  *   NODE_USE — use math.tree. — module import system
  */
 
-#include "nat.h"
+#include "nat_runtime.h"
 #include <stdlib.h>
 
 void execute(Node *n);
@@ -106,11 +106,10 @@ static void load_tree(const char *filename, int call_line) {
 
     /* execute the tree file — registers all its functions */
     int saved_has_return = g_has_return;
-    char saved_return[MAX_STR];
-    strncpy(saved_return, g_return_val, MAX_STR-1);
+    NatVal saved_return = g_return_val;
 
     g_has_return = 0;
-    g_return_val[0] = '\0';
+    g_return_val.type = VAL_NUM; g_return_val.num = 0.0; g_return_val.str[0] = '\0';
 
     /* register fix constants from tree file before executing */
     extern void pre_pass_fix(void);
@@ -148,7 +147,7 @@ static void load_tree(const char *filename, int call_line) {
 
     /* restore main program state */
     g_has_return = saved_has_return;
-    strncpy(g_return_val, saved_return, MAX_STR-1);
+    g_return_val = saved_return;
     g_line_count = saved_count;
     memcpy(g_lines, saved_lines, sizeof(g_lines));
     free(saved_lines);
@@ -303,7 +302,7 @@ void execute(Node *n) {
     case NODE_GIVE: {
         char val[MAX_STR] = {0};
         eval(n->left, val, MAX_STR);
-        strncpy(g_return_val, val, MAX_STR-1);
+        { extern int is_number(const char*); if (is_number(val)) { g_return_val.type = VAL_NUM; g_return_val.num = atof(val); g_return_val.str[0] = '\0'; } else { g_return_val.type = VAL_STR; strncpy(g_return_val.str, val, MAX_STR-1); g_return_val.num = 0.0; } }
         g_has_return = 1;
         return;
     }
@@ -348,33 +347,35 @@ void execute(Node *n) {
             warn_empty_func(g_current_line, fn->name);
         int  saved_vc  = g_var_count;
         int  saved_ret = g_has_return;
-        char saved_rv[MAX_STR];
-        strncpy(saved_rv, g_return_val, MAX_STR-1);
+        NatVal saved_rv = g_return_val;
 
         for (int j = 0; j < fn->param_count; j++) {
             char val[MAX_STR] = {0};
             if (j < n->arg_count && n->args[j])
                 eval(n->args[j], val, MAX_STR);
             if (g_var_count < MAX_VARS) {
-                strncpy(g_vars[g_var_count].name,  fn->params[j], 63);
-                strncpy(g_vars[g_var_count].value, val,           MAX_STR-1);
+                strncpy(g_vars[g_var_count].name, fn->params[j], 63);
                 g_vars[g_var_count].is_array = 0;
-                cache_numeric(&g_vars[g_var_count], val);
+                g_vars[g_var_count].arr_len  = 0;
+                cache_numeric(&g_vars[g_var_count], val);  /* Phase2: var_set_from_str */
                 g_var_count++;
             }
         }
         g_has_return    = 0;
-        g_return_val[0] = '\0';
+        g_return_val.type = VAL_NUM; g_return_val.num = 0.0; g_return_val.str[0] = '\0';
         execute_func_body(fn);
         /* auto-print return value when called as a bare statement */
-        char stmt_rv[MAX_STR];
-        strncpy(stmt_rv, g_return_val, MAX_STR-1);
+        NatVal stmt_rv = g_return_val;
         int  stmt_had_return = g_has_return;
         g_var_count  = saved_vc;
         g_has_return = saved_ret;
-        strncpy(g_return_val, saved_rv, MAX_STR-1);
-        if (stmt_had_return && stmt_rv[0] != '\0')
-            printf("%s\n", stmt_rv);
+        g_return_val = saved_rv;
+        if (stmt_had_return) {
+            char _rv_out[MAX_STR] = {0};
+            if (stmt_rv.type == VAL_NUM) { extern void fmt_num(char*,int,double); fmt_num(_rv_out, MAX_STR, stmt_rv.num); }
+            else strncpy(_rv_out, stmt_rv.str, MAX_STR-1);
+            if (_rv_out[0] != '\0') printf("%s\n", _rv_out);
+        }
         return;
     }
 
@@ -420,11 +421,9 @@ void execute(Node *n) {
 
             Variable *lv = find_var(n->name);
             if (lv) {
-                strncpy(lv->value, tmp, MAX_STR-1);
-                cache_numeric(lv, tmp);
+                cache_numeric(lv, tmp);  /* Phase2: typed set */
             } else if (g_var_count < MAX_VARS) {
-                strncpy(g_vars[g_var_count].name,  n->name, 63);
-                strncpy(g_vars[g_var_count].value, tmp,     MAX_STR-1);
+                strncpy(g_vars[g_var_count].name, n->name, 63);
                 g_vars[g_var_count].is_array = 0;
                 cache_numeric(&g_vars[g_var_count], tmp);
                 g_var_count++;
@@ -727,11 +726,12 @@ void execute(Node *n) {
             }
             if (!v->is_array) {
                 /* reverse a string variable in place */
-                int len = (int)strlen(v->value);
+                if (v->type == VAL_NUM) return; /* can't reverse a number */
+                int len = (int)strlen(v->str);
                 for (int lo = 0, hi = len-1; lo < hi; lo++, hi--) {
-                    char tmp = v->value[lo];
-                    v->value[lo] = v->value[hi];
-                    v->value[hi] = tmp;
+                    char tmp = v->str[lo];
+                    v->str[lo] = v->str[hi];
+                    v->str[hi] = tmp;
                 }
                 return;
             }
@@ -1117,164 +1117,71 @@ void execute(Node *n) {
      *  v3.6 — File I/O execution
      * ═══════════════════════════════════════════════════════════ */
 
-    /* ── write "text" to "file.txt". ── */
+    /* ═══ FILE I/O — delegated to nat_runtime ═══ */
     case NODE_FILE_WRITE: {
         char val[MAX_STR] = {0};
         if (n->left) eval(n->left, val, MAX_STR);
-        FILE *fp = fopen(n->name, "wb");
-        if (!fp) {
+        if (!nat_file_write(n->name, val))
             err_file_open(g_current_line, n->name);
-            return;
-        }
-        fprintf(fp, "%s\n", val);
-        fclose(fp);
         return;
     }
-
-    /* ── write "text" to "file.txt" at line N. ── */
     case NODE_FILE_WRITE_LINE: {
-        char val[MAX_STR] = {0};
-        char lnum[64]     = {0};
+        char val[MAX_STR]={0}, lnum[64]={0};
         if (n->left)  eval(n->left,  val,  MAX_STR);
         if (n->right) eval(n->right, lnum, 64);
         int target = atoi(lnum);
         if (target < 1) { err_line_range(g_current_line, n->name, target); return; }
-
-        /* read all lines */
-        FILE *fp = fopen(n->name, "rb");
-        char *lines[4096]; int lc = 0;
-        char buf[MAX_STR];
-        if (fp) {
-            while (fgets(buf, MAX_STR, fp) && lc < 4096) {
-                int bl = strlen(buf);
-                if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
-                lines[lc++] = strdup(buf);
-            }
-            fclose(fp);
-        }
-        /* expand if needed */
-        while (lc < target) lines[lc++] = strdup("");
-        free(lines[target-1]);
-        lines[target-1] = strdup(val);
-        /* write back */
-        fp = fopen(n->name, "wb");
-        if (!fp) { err_file_open(g_current_line, n->name); goto file_write_line_cleanup; }
-        for (int i = 0; i < lc; i++) fprintf(fp, "%s\n", lines[i]);
-        fclose(fp);
-        file_write_line_cleanup:
-        for (int i = 0; i < lc; i++) free(lines[i]);
+        if (!nat_file_write_line(n->name, val, target))
+            err_file_open(g_current_line, n->name);
         return;
     }
-
-    /* ── append "text" to "file.txt". ── */
     case NODE_FILE_APPEND: {
         char val[MAX_STR] = {0};
         if (n->left) eval(n->left, val, MAX_STR);
-        FILE *fp = fopen(n->name, "ab");
-        if (!fp) { err_file_open(g_current_line, n->name); return; }
-        fprintf(fp, "%s\n", val);
-        fclose(fp);
+        if (!nat_file_append(n->name, val))
+            err_file_open(g_current_line, n->name);
         return;
     }
-
-    /* ── insert "text" to "file.txt" at line N. ── */
     case NODE_FILE_INSERT: {
-        char val[MAX_STR] = {0};
-        char lnum[64]     = {0};
+        char val[MAX_STR]={0}, lnum[64]={0};
         if (n->left)  eval(n->left,  val,  MAX_STR);
         if (n->right) eval(n->right, lnum, 64);
         int target = atoi(lnum);
         if (target < 1) { err_line_range(g_current_line, n->name, target); return; }
-
-        FILE *fp = fopen(n->name, "rb");
-        char *lines[4096]; int lc = 0;
-        char buf[MAX_STR];
-        if (fp) {
-            while (fgets(buf, MAX_STR, fp) && lc < 4095) {
-                int bl = strlen(buf);
-                if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
-                lines[lc++] = strdup(buf);
-            }
-            fclose(fp);
-        }
-        /* shift lines from target down */
-        if (lc < 4095) {
-            for (int i = lc; i >= target; i--) lines[i] = lines[i-1];
-            lines[target-1] = strdup(val);
-            lc++;
-        }
-        fp = fopen(n->name, "wb");
-        if (!fp) { err_file_open(g_current_line, n->name); goto file_insert_cleanup; }
-        for (int i = 0; i < lc; i++) fprintf(fp, "%s\n", lines[i]);
-        fclose(fp);
-        file_insert_cleanup:
-        for (int i = 0; i < lc; i++) free(lines[i]);
+        if (!nat_file_insert(n->name, val, target))
+            err_file_open(g_current_line, n->name);
         return;
     }
-
-    /* ── remove line N from "file.txt". ── */
     case NODE_FILE_REMOVE_LINE: {
         char lnum[64] = {0};
         if (n->right) eval(n->right, lnum, 64);
         int target = atoi(lnum);
         if (target < 1) { err_line_range(g_current_line, n->name, target); return; }
-
-        FILE *fp = fopen(n->name, "rb");
-        if (!fp) { err_file_not_found(g_current_line, n->name); return; }
-        char *lines[4096]; int lc = 0;
-        char buf[MAX_STR];
-        while (fgets(buf, MAX_STR, fp) && lc < 4096) {
-            int bl = strlen(buf);
-            if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
-            lines[lc++] = strdup(buf);
-        }
-        fclose(fp);
-        if (target > lc) { err_line_range(g_current_line, n->name, target); goto file_remove_cleanup; }
-        free(lines[target-1]);
-        for (int i = target-1; i < lc-1; i++) lines[i] = lines[i+1];
-        lc--;
-        fp = fopen(n->name, "wb");
-        if (!fp) { err_file_open(g_current_line, n->name); goto file_remove_cleanup; }
-        for (int i = 0; i < lc; i++) fprintf(fp, "%s\n", lines[i]);
-        fclose(fp);
-        file_remove_cleanup:
-        for (int i = 0; i < lc; i++) free(lines[i]);
-        return;
-    }
-
-    /* ── read "file.txt". — prints with line numbers ── */
-    case NODE_FILE_READ: {
-        FILE *fp = fopen(n->name, "rb");
-        if (!fp) { err_file_not_found(g_current_line, n->name); return; }
-        char buf[MAX_STR]; int ln = 1;
-        while (fgets(buf, MAX_STR, fp)) {
-            int bl = strlen(buf);
-            if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
-            printf("line %d | %s\n", ln++, buf);
-        }
-        fclose(fp);
-        return;
-    }
-
-    /* ── delete file "file.txt". ── */
-    case NODE_FILE_DELETE: {
-        if (remove(n->name) != 0)
+        if (!nat_file_remove_line(n->name, target))
             err_file_not_found(g_current_line, n->name);
         return;
     }
-
-    /* ── write x inside "one.nat". — runtime injection ── */
+    case NODE_FILE_READ: {
+        if (!nat_file_exists(n->name))
+            err_file_not_found(g_current_line, n->name);
+        else
+            nat_file_read_all(n->name);
+        return;
+    }
+    case NODE_FILE_DELETE: {
+        if (!nat_file_delete(n->name))
+            err_file_not_found(g_current_line, n->name);
+        return;
+    }
     case NODE_WRITE_INSIDE: {
+        /* runtime injection — no disk write, stores in g_injects table */
         char val[MAX_STR] = {0};
         if (n->left) eval(n->left, val, MAX_STR);
-        /* store in injection table: varname -> value */
-        /* n->params[0] holds the var name (set during parse via n->left->name) */
         char varname[64] = {0};
         if (n->left && n->left->kind == NODE_VAR)
             strncpy(varname, n->left->name, 63);
         else
             strncpy(varname, "__injected__", 63);
-        /* find or create injection slot */
         for (int i = 0; i < g_inject_count; i++) {
             if (strcmp(g_injects[i].name, varname) == 0) {
                 strncpy(g_injects[i].value, val, MAX_STR-1);
@@ -1288,18 +1195,17 @@ void execute(Node *n) {
         }
         return;
     }
-
-    /* ── each line in file "x.txt": ── */
     case NODE_FILE_EACH: {
+        if (!nat_file_exists(n->name)) {
+            err_file_not_found(g_current_line, n->name);
+            return;
+        }
         FILE *fp = fopen(n->name, "rb");
-        if (!fp) { err_file_not_found(g_current_line, n->name); return; }
         char buf[MAX_STR];
         while (fgets(buf, MAX_STR, fp)) {
             int bl = strlen(buf);
-            if (bl > 0 && buf[bl-1] == '\n') buf[bl-1] = '\0';
-            /* skip empty trailing line from final newline in file */
+            while (bl > 0 && (buf[bl-1]=='\n'||buf[bl-1]=='\r')) buf[--bl]='\0';
             if (buf[0] == '\0' && feof(fp)) break;
-            /* set loop variable */
             set_var(n->params[0], buf);
             execute_block(n->body_start, n->body_end);
             if (g_has_return) break;

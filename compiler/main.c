@@ -34,7 +34,8 @@ int      g_func_count = 0;
 char     g_lines[MAX_LINES][MAX_LINE_LEN];
 int      g_line_count = 0;
 
-char     g_return_val[MAX_STR] = {0};
+NatVal   g_return_val = {VAL_NUM, 0.0, {0}};
+char     g_return_str[MAX_STR] = {0};  /* legacy compat */
 int      g_has_return          = 0;
 int      g_current_line        = 0;
 
